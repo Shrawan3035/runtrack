@@ -26,7 +26,7 @@ app.post('/api/workout', async (req, res) => {
         'Authorization': `Bearer ${OPENROUTER_KEY}`
       },
       body: JSON.stringify({
-        model: 'openrouter/auto',
+        model: 'openrouter/free',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user',   content: userMessage  }
@@ -67,7 +67,7 @@ app.post('/api/chat', async (req, res) => {
         'Authorization': `Bearer ${OPENROUTER_KEY}`
       },
       body: JSON.stringify({
-        model: 'openrouter/auto',
+        model: 'openrouter/free',
         messages,
         max_tokens: 600,
         temperature: 0.8

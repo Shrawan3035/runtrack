@@ -634,7 +634,15 @@ async function getOrFetchWorkout(forceRefresh = false) {
 
 async function fetchWorkoutSuggestion() {
   const systemPrompt = buildSystemPrompt();
-  const userMessage  = `Based on this runner's complete history and profile, suggest their next workout.
+
+  // Include recent chat history so the workout reflects any coaching conversation
+  const recentChat = chatHistory.slice(1).slice(-10); // skip greeting, last 10 messages
+  const chatContext = recentChat.length > 0
+    ? '\n\nRECENT COACHING CONVERSATION (use this to personalise the workout — e.g. injuries mentioned, preferred session type, time constraints):\n' +
+      recentChat.map(m => `${m.role === 'user' ? 'Runner' : 'Coach'}: ${m.content}`).join('\n')
+    : '';
+
+  const userMessage  = `Based on this runner's complete history and profile${chatContext ? ', and our recent coaching conversation' : ''}, suggest their next workout.${chatContext}
 
 Respond ONLY with a valid JSON object. No markdown, no extra text, no code fences. Exactly this format:
 {
@@ -786,6 +794,7 @@ window.sendChat = async function() {
   if (sendBtn) sendBtn.disabled = false;
   const aiText = reply || "I'm having trouble connecting right now. Please try again in a moment.";
   chatHistory.push({role: 'assistant', content: aiText});
+  clearWorkoutCache(); // workout will now reflect this conversation on next refresh
   renderChatMessages();
   input.focus();
 };

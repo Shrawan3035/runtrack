@@ -30,8 +30,6 @@ const WEEK_STARTS = [
 const WEIGHTS     = {easy:1,tempo:2.2,interval:3.5,long:1.8,optional:1.2,custom:1.5,skipped:0};
 const TYPE_COLORS = {easy:'#639922',tempo:'#BA7517',interval:'#E24B4A',long:'#378ADD',optional:'#7F77DD',custom:'#7F77DD',skipped:'#ccc'};
 const EFFORT_DESC = ['','very easy','easy','comfortable','moderate-easy','moderate','moderate-hard','hard','very hard','near max','all out'];
-const PHASE_LABELS = {1:'Month 1',2:'Month 2',3:'Month 3'};
-const SESSION_DAYS = {2:'interval',4:'tempo',6:'long'};
 
 const WEEK_TARGETS = {
   interval:[[4.833,5.167],[4.583,4.917],[4.5,4.833],[4.833,5.167],[4.333,4.667],[4.083,4.417],[4.0,4.333],[3.917,4.25],[4.333,4.667],[3.917,4.167],[3.667,4.0],[3.583,3.917],[3.333,3.667]],
@@ -40,21 +38,7 @@ const WEEK_TARGETS = {
   easy:     [[6.5,7.0],[6.167,6.667],[6.0,6.5],[6.5,7.0],[6.0,6.5],[5.917,6.333],[5.75,6.0],[5.667,5.917],[6.0,6.5],[5.667,6.0],[5.5,5.833],[5.5,5.833],[5.667,6.0]]
 };
 
-const WEEKS = [
-  {w:1,phase:1,label:'Finding your legs',interval:{vol:'4×400m',pace:'5:00–5:10/km',desc:'Short, easy strides. Focus on form.'},tempo:{vol:'15 min',pace:'5:10–5:20/km',desc:'Sustained easy-moderate effort.'},long:{vol:'4–5 km',pace:'6:30–7:00/km',desc:'Very easy. Fully conversational.'},optional:{vol:'3 km',pace:'6:30–7:00/km',desc:'Easy recovery jog.'}},
-  {w:2,phase:1,label:'Building rhythm',interval:{vol:'5×400m',pace:'4:55–5:05/km',desc:'One more rep. Still easy.'},tempo:{vol:'17 min',pace:'5:05–5:15/km',desc:'Slightly longer. Keep breathing controlled.'},long:{vol:'5 km',pace:'6:20–6:50/km',desc:'Easy and steady.'},optional:{vol:'3–4 km',pace:'6:20–6:50/km',desc:'Easy aerobic top-up.'}},
-  {w:3,phase:1,label:'Settling in',interval:{vol:'5×400m',pace:'4:50–5:00/km',desc:'Same reps, slightly faster.'},tempo:{vol:'18 min',pace:'5:00–5:10/km',desc:'Creeping up in pace.'},long:{vol:'5–6 km',pace:'6:15–6:45/km',desc:'Longest run so far.'},optional:{vol:'4 km',pace:'6:15–6:45/km',desc:'Keep it very easy.'}},
-  {w:4,phase:1,label:'Recovery week',interval:{vol:'4×400m',pace:'5:00–5:10/km',desc:'Step back — fewer reps.'},tempo:{vol:'15 min',pace:'5:10–5:20/km',desc:'Shorter tempo. Absorb Month 1.'},long:{vol:'4–5 km',pace:'6:30–7:00/km',desc:'Shorter long run. Enjoy the ease.'},optional:{vol:'3 km',pace:'6:30–7:00/km',desc:'Optional — skip if tired.'}},
-  {w:5,phase:2,label:'Stepping it up',interval:{vol:'5×400m',pace:'4:40–4:50/km',desc:'Noticeably faster. Real work now.'},tempo:{vol:'20 min',pace:'4:55–5:05/km',desc:'First 20-min tempo. Find a rhythm.'},long:{vol:'6 km',pace:'6:10–6:40/km',desc:'New distance milestone.'},optional:{vol:'4 km',pace:'6:10–6:40/km',desc:'Easy aerobic run.'}},
-  {w:6,phase:2,label:'Building confidence',interval:{vol:'6×400m',pace:'4:35–4:45/km',desc:'Six reps. Full 90s recovery.'},tempo:{vol:'20 min',pace:'4:50–5:00/km',desc:'Same duration, faster pace.'},long:{vol:'6–7 km',pace:'6:05–6:35/km',desc:'Comfortable long run.'},optional:{vol:'4–5 km',pace:'6:05–6:35/km',desc:'Optional easy run.'}},
-  {w:7,phase:2,label:'Introducing 600s',interval:{vol:'5×600m',pace:'4:30–4:40/km',desc:'Longer reps. 2-min recovery.'},tempo:{vol:'22 min',pace:'4:45–4:55/km',desc:'Breathing hard but controlled.'},long:{vol:'7 km',pace:'6:00–6:30/km',desc:'Aerobic base growing.'},optional:{vol:'5 km',pace:'6:00–6:30/km',desc:'Easy run.'}},
-  {w:8,phase:2,label:'Pushing the tempo',interval:{vol:'6×600m',pace:'4:25–4:35/km',desc:'Six 600m reps. Earn it.'},tempo:{vol:'23 min',pace:'4:40–4:50/km',desc:'Sub-4:50 tempo. Big milestone.'},long:{vol:'7–8 km',pace:'5:55–6:25/km',desc:'Longest run yet. Fuel properly.'},optional:{vol:'5 km',pace:'5:55–6:25/km',desc:'Very easy.'}},
-  {w:9,phase:2,label:'Recovery week',interval:{vol:'4×400m',pace:'4:40–4:50/km',desc:'Step back. Short reps.'},tempo:{vol:'18 min',pace:'4:55–5:05/km',desc:'Shorter tempo. Absorb Month 2.'},long:{vol:'6 km',pace:'6:10–6:40/km',desc:'Pull back. Rest is adaptation.'},optional:{vol:'3–4 km',pace:'6:10–6:40/km',desc:'Easy jog or skip.'}},
-  {w:10,phase:3,label:'Race pace work begins',interval:{vol:'6×600m',pace:'4:15–4:25/km',desc:'Touching 5K pace territory.'},tempo:{vol:'24 min',pace:'4:35–4:45/km',desc:'Approaching race-supporting pace.'},long:{vol:'8 km',pace:'5:50–6:20/km',desc:'Solid long run.'},optional:{vol:'5 km',pace:'5:50–6:20/km',desc:'Easy aerobic run.'}},
-  {w:11,phase:3,label:'Getting sharper',interval:{vol:'7×600m',pace:'4:10–4:20/km',desc:'Seven reps. Close to race pace.'},tempo:{vol:'25 min',pace:'4:30–4:40/km',desc:'25 min at sub-4:40. Serious fitness.'},long:{vol:'8–9 km',pace:'5:45–6:15/km',desc:'Long run peak.'},optional:{vol:'5–6 km',pace:'5:45–6:15/km',desc:'Easy miles.'}},
-  {w:12,phase:3,label:'Peak week',interval:{vol:'6×800m',pace:'4:05–4:15/km',desc:'800m reps — longest intervals.'},tempo:{vol:'25 min',pace:'4:25–4:35/km',desc:'Near sub-20 supporting pace.'},long:{vol:'9 km',pace:'5:45–6:15/km',desc:'Peak long run. Easy pace.'},optional:{vol:'5–6 km',pace:'5:45–6:15/km',desc:'Keep it relaxed.'}},
-  {w:13,phase:3,label:'Taper and test',interval:{vol:'4×600m',pace:'4:00–4:10/km',desc:'Short, sharp. Race pace legs.'},tempo:{vol:'20 min',pace:'4:20–4:30/km',desc:'Shorter but fast. Done the work.'},long:{vol:'6–7 km',pace:'5:50–6:20/km',desc:'Taper run. Trust the process.'},optional:{vol:'4 km',pace:'5:50–6:20/km',desc:'Very easy shakeout.'}},
-];
+
 
 // ── STATE ──────────────────────────────────────────────────────────────────
 let runs = [];
@@ -150,7 +134,6 @@ window.showPage = function(id, btn) {
   if (btn) btn.classList.add('active');
   if (id === 'dashboard') renderDashboard();
   if (id === 'coach')     renderCoachPage();
-  if (id === 'plan')      renderPlan();
   if (id === 'history')   renderHistory();
   if (id === 'charts')    renderChart(activeChartName);
   if (id === 'compare')   renderCompare(activeCompareType);
@@ -162,24 +145,43 @@ function renderDashboard() {
   const totalKm = validRuns.reduce((s, r) => s + (r.dist || 0), 0);
   const paces = validRuns.filter(r => r.pace).map(r => r.pace);
   const bestPace = paces.length ? Math.min(...paces) : null;
-  const cw = getCurrentWeek();
+
+  // Days since last run
+  const today = new Date();
+  const lastRun = validRuns.length > 0 ? validRuns[validRuns.length - 1] : null;
+  const daysSinceLast = lastRun
+    ? Math.floor((today - new Date(lastRun.date + 'T00:00:00')) / (1000 * 60 * 60 * 24))
+    : null;
+  const daysSinceLabel = daysSinceLast === null ? '—' : daysSinceLast === 0 ? 'Today' : daysSinceLast === 1 ? '1 day ago' : daysSinceLast + ' days ago';
+
   document.getElementById('dash-metrics').innerHTML = `
     <div class="metric"><div class="mlabel">Total runs</div><div class="mval">${validRuns.length}</div></div>
     <div class="metric"><div class="mlabel">Total km</div><div class="mval">${totalKm.toFixed(1)}</div></div>
-    <div class="metric"><div class="mlabel">Current week</div><div class="mval">W${cw}<span style="font-size:13px"> / 13</span></div></div>
+    <div class="metric"><div class="mlabel">Last run</div><div class="mval" style="font-size:${daysSinceLast === null ? '22' : daysSinceLabel.length > 6 ? '14' : '18'}px">${daysSinceLabel}</div></div>
     <div class="metric"><div class="mlabel">Best pace</div><div class="mval" style="font-size:17px">${bestPace ? paceStr(bestPace) : '—'}</div></div>`;
   renderDashboardAiCard();
-  const wdata = WEEKS[cw - 1];
+
+  // Recent activity card
+  const recentRuns = validRuns.slice(-4).reverse();
+  let activityHtml = '';
+  if (recentRuns.length === 0) {
+    activityHtml = `<div style="color:var(--text3);font-size:13px">No runs yet. Head to Log run to get started!</div>`;
+  } else {
+    activityHtml = recentRuns.map(r => {
+      const bt = badgeType(r.type);
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border)">
+        <span class="run-badge badge-${bt}" style="flex-shrink:0">${r.label || r.type}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600">${r.date}</div>
+          <div style="font-size:12px;color:var(--text3)">${r.dist ? r.dist.toFixed(1) + ' km' : ''}${r.pace ? ' · ' + paceStr(r.pace) : ''}${r.effort ? ' · effort ' + r.effort + '/10' : ''}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
   document.getElementById('this-week-card').innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:.75rem;flex-wrap:wrap">
-      <div class="sec" style="margin:0">Week ${cw} reference — ${wdata.label}</div>
-      <span class="phase-pill phase-${wdata.phase}">${PHASE_LABELS[wdata.phase]}</span>
-      <span style="font-size:11px;color:var(--text3)">${getWeekDates(cw)}</span>
-    </div>
-    <div class="session-grid">
-      ${sCard('interval', wdata.interval, 'Tue')}${sCard('tempo', wdata.tempo, 'Thu')}
-      ${sCard('long', wdata.long, 'Sat')}${sCard('optional', wdata.optional, 'Optional')}
-    </div>`;
+    <div class="sec" style="margin-bottom:.75rem">Recent activity</div>
+    ${activityHtml}`;
+
   const profile = getProfile();
   const targetPace = profile?.targetPace || 4.0;
   const startPace  = profile?.startPace  || 5.5;

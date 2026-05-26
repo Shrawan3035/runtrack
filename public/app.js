@@ -106,11 +106,35 @@ function getCurrentWeek() {
 function filterByRange(list) {
   const r = document.getElementById('chart-range')?.value || 'all';
   if (r === 'all') return list;
-  if (r.startsWith('month-')) { const m = parseInt(r.split('-')[1]); const ranges = {1:[1,4],2:[5,9],3:[10,13]}; const [a,b] = ranges[m]; return list.filter(x => x.week >= a && x.week <= b); }
-  if (r.startsWith('week-')) { const w = parseInt(r.split('-')[1]); return list.filter(x => x.week === w); }
-  return list;
+  return list.filter(x => x.date.startsWith(r));
+}
+function populateChartRangeDropdown() {
+  const sel = document.getElementById('chart-range');
+  if (!sel) return;
+  const currentVal = sel.value;
+  const months = [...new Set(runs.map(r => r.date.slice(0, 7)))].sort();
+  sel.innerHTML = '<option value="all">All time</option>';
+  months.forEach(ym => {
+    const [y, m] = ym.split('-');
+    const label = new Date(parseInt(y), parseInt(m) - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    const opt = document.createElement('option');
+    opt.value = ym; opt.textContent = label;
+    sel.appendChild(opt);
+  });
+  if ([...sel.options].some(o => o.value === currentVal)) sel.value = currentVal;
+  else sel.value = 'all';
 }
 function escHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+function paceAxisRange(values, padding = 0.25) {
+  const valid = values.filter(v => v != null && !isNaN(v));
+  if (!valid.length) return { min: 4.5, max: 7.0 };
+  const lo = Math.min(...valid), hi = Math.max(...valid);
+  return { min: Math.max(2.5, Math.floor((lo - padding) * 4) / 4), max: Math.ceil((hi + padding) * 4) / 4 };
+}
 function renderMarkdown(text) {
   return text
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -421,11 +445,12 @@ window.showChart = function(name, btn) {
 };
 function destroyChart(id) { if (activeCharts[id]) { try { activeCharts[id].destroy(); } catch(e) {} delete activeCharts[id]; } }
 function renderChart(name) {
+  populateChartRangeDropdown();
   const empty = document.getElementById('charts-empty');
   const valid = runs.filter(r => r.type !== 'skipped');
   if (!valid.length) { empty.style.display = 'block'; return; }
   empty.style.display = 'none';
-  const data = filterByRange(valid);
+  const data = filterByRange(runs); // all runs including skipped
   if (name === 'fitness')  renderFitness(data);
   else if (name === 'pace') renderPaceChart(data);
   else if (name === 'distance') renderDist(data);
@@ -434,45 +459,80 @@ function renderChart(name) {
 function renderFitness(data) {
   destroyChart('fitness');
   const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
-  let score = 0; const labels = [], vals = [];
-  sorted.forEach(r => { const w = WEIGHTS[r.type] || 1.5, pb = r.pace ? Math.max(0, (5.5 - r.pace) * 8) : 0; score += (r.dist * w) + pb; labels.push('W' + r.week + ' ' + r.date.slice(5)); vals.push(Math.round(score * 10) / 10); });
+  let score = 0;
+  const labels = [], vals = [], ptColors = [], ptRadii = [], ptBorder = [];
+  sorted.forEach(r => {
+    if (r.type !== 'skipped') {
+      const w = WEIGHTS[r.type] || 1.5, pb = r.pace ? Math.max(0, (5.5 - r.pace) * 8) : 0;
+      score += (r.dist * w) + pb;
+    }
+    labels.push(fmtDate(r.date));
+    vals.push(Math.round(score * 10) / 10);
+    const skipped = r.type === 'skipped';
+    ptColors.push(skipped ? 'rgba(180,180,180,0.4)' : '#378ADD');
+    ptBorder.push(skipped ? 'rgba(180,180,180,0.6)' : '#378ADD');
+    ptRadii.push(skipped ? 4 : 5);
+  });
   activeCharts['fitness'] = new Chart(document.getElementById('c-fitness').getContext('2d'), {
-    type: 'line', data: {labels, datasets: [{label:'Fitness',data:vals,borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.07)',fill:true,tension:0.4,pointRadius:5,pointBackgroundColor:'#378ADD'}]},
-    options: {responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'rgba(128,128,128,0.1)'},ticks:{color:'#888'}},x:{grid:{display:false},ticks:{color:'#888',maxRotation:45,maxTicksLimit:10}}}}
+    type: 'line',
+    data: { labels, datasets: [{ label:'Fitness', data:vals, borderColor:'#378ADD', backgroundColor:'rgba(55,138,221,0.07)', fill:true, tension:0.4, pointRadius:ptRadii, pointBackgroundColor:ptColors, pointBorderColor:ptBorder }] },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{display:false}, tooltip:{ callbacks:{ label:(ctx) => { const r = sorted[ctx.dataIndex]; return r.type === 'skipped' ? 'Skipped — score: ' + ctx.parsed.y : 'Score: ' + ctx.parsed.y; } } } },
+      scales: { y:{ beginAtZero:false, grid:{color:'rgba(128,128,128,0.1)'}, ticks:{color:'#888'} }, x:{ grid:{display:false}, ticks:{color:'#888', maxRotation:35, autoSkip:true, maxTicksLimit:8} } }
+    }
   });
 }
 function renderPaceChart(data) {
   destroyChart('pace');
-  const types = ['easy','tempo','interval','long','optional','custom']; const datasets = [];
+  const validData = data.filter(r => r.type !== 'skipped');
+  const types = ['easy','tempo','interval','long','optional','custom'];
+  const datasets = [], allPaces = [];
   types.forEach(type => {
-    const tr = data.filter(r => r.type === type && r.pace).sort((a, b) => a.date.localeCompare(b.date));
+    const tr = validData.filter(r => r.type === type && r.pace).sort((a, b) => a.date.localeCompare(b.date));
     if (!tr.length) return;
-    datasets.push({label: type.charAt(0).toUpperCase() + type.slice(1), data: tr.map(r => ({x: 'W' + r.week + ' ' + r.date.slice(5), y: Math.round(r.pace * 100) / 100})), borderColor: TYPE_COLORS[type], backgroundColor: TYPE_COLORS[type], tension: 0.3, pointRadius: 5, fill: false});
+    allPaces.push(...tr.map(r => r.pace));
+    datasets.push({ label: type.charAt(0).toUpperCase() + type.slice(1), data: tr.map(r => ({ x: fmtDate(r.date), y: Math.round(r.pace * 100) / 100 })), borderColor: TYPE_COLORS[type], backgroundColor: TYPE_COLORS[type], tension: 0.3, pointRadius: 5, fill: false });
   });
-  const allL = [...new Set(data.map(r => 'W' + r.week + ' ' + r.date.slice(5)))].sort();
-  datasets.push({label:'Target',data:allL.map(d => ({x:d,y:4.0})),borderColor:'rgba(180,180,180,0.5)',borderDash:[6,4],pointRadius:0,fill:false});
   if (!datasets.length) return;
+  const allL = [...new Set(validData.map(r => fmtDate(r.date)))];
+  const { min, max } = paceAxisRange(allPaces);
+  datasets.push({ label:'Target', data: allL.map(d => ({ x:d, y:4.0 })), borderColor:'rgba(180,180,180,0.5)', borderDash:[6,4], pointRadius:0, fill:false });
   activeCharts['pace'] = new Chart(document.getElementById('c-pace').getContext('2d'), {
-    type: 'line', data: {datasets},
-    options: {responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:'#888',boxWidth:10,font:{size:11}}}},scales:{y:{reverse:true,min:3.5,max:7.5,grid:{color:'rgba(128,128,128,0.1)'},ticks:{color:'#888',callback:v=>{const m=Math.floor(v),s=Math.round((v-m)*60);return m+':'+String(s).padStart(2,'0');}}},x:{type:'category',grid:{display:false},ticks:{color:'#888',maxRotation:45,maxTicksLimit:10}}}}
+    type: 'line', data: { datasets },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{ display:true, labels:{ color:'#888', boxWidth:10, font:{size:11} } } },
+      scales: { y:{ reverse:true, min, max, grid:{color:'rgba(128,128,128,0.1)'}, ticks:{color:'#888', callback: v => { const m=Math.floor(v),s=Math.round((v-m)*60); return m+':'+String(s).padStart(2,'0'); }} }, x:{ type:'category', grid:{display:false}, ticks:{color:'#888', maxRotation:35, autoSkip:true, maxTicksLimit:8} } }
+    }
   });
 }
 function renderDist(data) {
   destroyChart('dist');
   const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
-  let cum = 0; const labels = [], vals = [];
-  sorted.forEach(r => { cum += r.dist; labels.push('W' + r.week + ' ' + r.date.slice(5)); vals.push(Math.round(cum * 10) / 10); });
+  let cum = 0; const labels = [], vals = [], ptColors = [];
+  sorted.forEach(r => {
+    if (r.type !== 'skipped') cum += (r.dist || 0);
+    labels.push(fmtDate(r.date));
+    vals.push(Math.round(cum * 10) / 10);
+    ptColors.push(r.type === 'skipped' ? 'rgba(180,180,180,0.5)' : '#639922');
+  });
   activeCharts['dist'] = new Chart(document.getElementById('c-dist').getContext('2d'), {
-    type: 'line', data: {labels, datasets: [{label:'Total km',data:vals,borderColor:'#639922',backgroundColor:'rgba(99,153,34,0.07)',fill:true,tension:0.3,pointRadius:4,pointBackgroundColor:'#639922'}]},
-    options: {responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'rgba(128,128,128,0.1)'},ticks:{color:'#888',callback:v=>v+' km'}},x:{grid:{display:false},ticks:{color:'#888',maxRotation:45,maxTicksLimit:10}}}}
+    type: 'line', data: { labels, datasets: [{ label:'Total km', data:vals, borderColor:'#639922', backgroundColor:'rgba(99,153,34,0.07)', fill:true, tension:0.3, pointRadius:4, pointBackgroundColor:ptColors, pointBorderColor:ptColors }] },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{display:false}, tooltip:{ callbacks:{ label:(ctx) => { const r = sorted[ctx.dataIndex]; return r.type === 'skipped' ? 'Skipped — total: ' + ctx.parsed.y + ' km' : 'Total: ' + ctx.parsed.y + ' km'; } } } },
+      scales: { y:{ beginAtZero:true, grid:{color:'rgba(128,128,128,0.1)'}, ticks:{color:'#888', callback:v=>v+' km'} }, x:{ grid:{display:false}, ticks:{color:'#888', maxRotation:35, autoSkip:true, maxTicksLimit:8} } }
+    }
   });
 }
 function renderEffort(data) {
   destroyChart('effort');
   const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
   activeCharts['effort'] = new Chart(document.getElementById('c-effort').getContext('2d'), {
-    type: 'bar', data: {labels: sorted.map(r => 'W' + r.week + ' ' + r.date.slice(5)), datasets: [{label:'Effort',data:sorted.map(r => r.effort),backgroundColor:sorted.map(r => TYPE_COLORS[r.type] || '#888'),borderRadius:4}]},
-    options: {responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,max:10,grid:{color:'rgba(128,128,128,0.1)'},ticks:{color:'#888',stepSize:2}},x:{grid:{display:false},ticks:{color:'#888',maxRotation:45,maxTicksLimit:10}}}}
+    type: 'bar',
+    data: { labels: sorted.map(r => fmtDate(r.date)), datasets: [{ label:'Effort', data: sorted.map(r => r.type === 'skipped' ? 0 : (r.effort || 0)), backgroundColor: sorted.map(r => r.type === 'skipped' ? 'rgba(180,180,180,0.35)' : (TYPE_COLORS[r.type] || '#888')), borderRadius: 4 }] },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{display:false}, tooltip:{ callbacks:{ label:(ctx) => { const r = sorted[ctx.dataIndex]; return r.type === 'skipped' ? 'Skipped' : 'Effort: ' + ctx.parsed.y + '/10 (' + r.type + ')'; } } } },
+      scales: { y:{ min:0, max:10, grid:{color:'rgba(128,128,128,0.1)'}, ticks:{color:'#888', stepSize:2} }, x:{ grid:{display:false}, ticks:{color:'#888', maxRotation:35, autoSkip:true, maxTicksLimit:8} } }
+    }
   });
 }
 
@@ -491,24 +551,22 @@ function renderCompare(type) {
   if (!typeRuns.length) { empty.style.display = 'block'; canvas.style.display = 'none'; return; }
   empty.style.display = 'none'; canvas.style.display = 'block';
   const targets = WEEK_TARGETS[type] || WEEK_TARGETS['easy'];
-  const labels  = typeRuns.map(r => 'W' + r.week + ' ' + r.date.slice(5));
+  const labels  = typeRuns.map(r => fmtDate(r.date));
   const actuals = typeRuns.map(r => Math.round(r.pace * 100) / 100);
   const tMins   = typeRuns.map(r => targets[Math.min(r.week - 1, 12)][0]);
   const tMaxs   = typeRuns.map(r => targets[Math.min(r.week - 1, 12)][1]);
   const barColors = typeRuns.map((r, i) => { const p = r.pace; if (p >= tMins[i] && p <= tMaxs[i]) return '#639922'; if (p < tMins[i] - 0.3 || p > tMaxs[i] + 0.5) return '#E24B4A'; return '#BA7517'; });
+  const { min, max } = paceAxisRange([...actuals, ...tMins, ...tMaxs], 0.3);
   compareChart = new Chart(canvas.getContext('2d'), {
     type: 'bar',
-    data: {labels, datasets: [
-      {label:'Your pace', data:actuals, backgroundColor:barColors, borderRadius:4, order:2},
-      {label:'Target min', data:tMins, type:'line', borderColor:'rgba(55,138,221,0.5)', borderDash:[4,4], pointRadius:0, fill:false, order:1},
-      {label:'Target max', data:tMaxs, type:'line', borderColor:'rgba(55,138,221,0.5)', borderDash:[4,4], pointRadius:0, fill:'-1', backgroundColor:'rgba(55,138,221,0.08)', order:1}
+    data: { labels, datasets: [
+      { label:'Your pace', data:actuals, backgroundColor:barColors, borderRadius:4, order:2 },
+      { label:'Target min', data:tMins, type:'line', borderColor:'rgba(55,138,221,0.5)', borderDash:[4,4], pointRadius:0, fill:false, order:1 },
+      { label:'Target max', data:tMaxs, type:'line', borderColor:'rgba(55,138,221,0.5)', borderDash:[4,4], pointRadius:0, fill:'-1', backgroundColor:'rgba(55,138,221,0.08)', order:1 }
     ]},
-    options: {responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:true,labels:{color:'#888',boxWidth:10,font:{size:11},filter:i=>i.text!=='Target max'}}},
-      scales:{
-        y:{reverse:true,min:3.0,max:8.0,grid:{color:'rgba(128,128,128,0.1)'},ticks:{color:'#888',callback:v=>{const m=Math.floor(v),s=Math.round((v-m)*60);return m+':'+String(s).padStart(2,'0');}}},
-        x:{grid:{display:false},ticks:{color:'#888',maxRotation:45,maxTicksLimit:12}}
-      }
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{ display:true, labels:{ color:'#888', boxWidth:10, font:{size:11}, filter: i => i.text !== 'Target max' } } },
+      scales: { y:{ reverse:true, min, max, grid:{color:'rgba(128,128,128,0.1)'}, ticks:{color:'#888', callback: v => { const m=Math.floor(v),s=Math.round((v-m)*60); return m+':'+String(s).padStart(2,'0'); }} }, x:{ grid:{display:false}, ticks:{color:'#888', maxRotation:35, autoSkip:true, maxTicksLimit:10} } }
     }
   });
 }

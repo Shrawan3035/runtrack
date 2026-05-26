@@ -103,14 +103,6 @@ function getCurrentWeek() {
   const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
   return getWeekNum(todayStr);
 }
-function getWeekDates(w) {
-  const startStr = WEEK_STARTS[w - 1];
-  const parts = startStr.split('-');
-  const s = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-  const e = new Date(s); e.setDate(e.getDate() + 6);
-  const fmt = d => d.toLocaleDateString('en-GB', {month: 'short', day: 'numeric'});
-  return fmt(s) + ' – ' + fmt(e);
-}
 function filterByRange(list) {
   const r = document.getElementById('chart-range')?.value || 'all';
   if (r === 'all') return list;
@@ -230,16 +222,7 @@ function badgeType(type) {
   if (['easy','tempo','interval','long','optional','custom','recovery'].includes(t)) return t;
   return 'custom';
 }
-function sCard(type, data, day) {
-  const colors = {interval:'#A32D2D',tempo:'#854F0B',long:'#185FA5',optional:'#534AB7'};
-  const labels = {interval:'Intervals',tempo:'Tempo',long:'Long run',optional:'Optional'};
-  return `<div class="session-card">
-    <div class="session-type" style="color:${colors[type]}">${day} · ${labels[type]}</div>
-    <div class="session-volume">${data.vol}</div>
-    <div class="session-pace">${data.pace}</div>
-    <div class="session-desc">${data.desc}</div>
-  </div>`;
-}
+
 
 // ── MODAL ──────────────────────────────────────────────────────────────────
 function showModal(title, body, buttons) {
@@ -255,43 +238,6 @@ function closeModal() { document.getElementById('modal').style.display = 'none';
 window.closeModal = closeModal;
 document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
 
-// ── PLAN ───────────────────────────────────────────────────────────────────
-function renderPlan() {
-  const cw = getCurrentWeek(); let html = '', lastPhase = 0;
-  const ph = {1:'Month 1 — Base building (Weeks 1–4)',2:'Month 2 — Volume &amp; tempo (Weeks 5–9)',3:'Month 3 — Sharpening (Weeks 10–13)'};
-  WEEKS.forEach(wk => {
-    if (wk.phase !== lastPhase) { lastPhase = wk.phase; html += `<div style="font-size:13px;font-weight:600;color:var(--text2);margin:${wk.w===1?'0':'1.25rem'} 0 .6rem;padding-bottom:6px;border-bottom:0.5px solid var(--border)">${ph[wk.phase]}</div>`; }
-    const isCurrent = wk.w === cw, isPast = wk.w < cw;
-    const done    = runs.filter(r => r.week === wk.w && r.type !== 'skipped').length;
-    const skipped = runs.filter(r => r.week === wk.w && r.type === 'skipped').length;
-    html += `<div class="week-row${isCurrent ? ' current' : ''}" onclick="toggleWeek(${wk.w})">
-      <div class="week-header${isPast ? ' past' : ''}">
-        <span style="font-weight:600;min-width:28px">W${wk.w}</span>
-        <span style="flex:1">${wk.label}</span>
-        ${isCurrent ? '<span class="current-badge">This week</span>' : ''}
-        ${done > 0 ? `<span style="font-size:11px;color:var(--green)">${done} done</span>` : ''}
-        ${skipped > 0 ? `<span style="font-size:11px;color:var(--text3)">${skipped} skipped</span>` : ''}
-        <span class="phase-pill phase-${wk.phase}">${PHASE_LABELS[wk.phase]}</span>
-        <span style="font-size:11px;color:var(--text3)">${getWeekDates(wk.w)}</span>
-        <span style="font-size:13px;color:var(--text3);margin-left:4px" id="arr-${wk.w}">▸</span>
-      </div>
-      <div id="wd-${wk.w}" style="display:none;margin-top:10px">
-        <div class="session-grid">
-          ${sCard('interval', wk.interval, 'Tue')}${sCard('tempo', wk.tempo, 'Thu')}
-          ${sCard('long', wk.long, 'Sat')}${sCard('optional', wk.optional, 'Optional')}
-        </div>
-      </div>
-    </div>`;
-  });
-  document.getElementById('plan-list').innerHTML = html;
-  const d = document.getElementById('wd-' + cw), a = document.getElementById('arr-' + cw);
-  if (d) { d.style.display = 'block'; a.textContent = '▾'; }
-}
-window.toggleWeek = function(w) {
-  const d = document.getElementById('wd-' + w), a = document.getElementById('arr-' + w);
-  if (!d) return; const o = d.style.display !== 'none';
-  d.style.display = o ? 'none' : 'block'; a.textContent = o ? '▸' : '▾';
-};
 
 // ── LOG RUN ────────────────────────────────────────────────────────────────
 window.toggleCustomRow = function() {
@@ -569,24 +515,45 @@ function renderCompare(type) {
 
 // ── AI: SYSTEM PROMPT ──────────────────────────────────────────────────────
 function buildSystemPrompt() {
-  const profile  = getProfile() || {};
-  const validRuns = runs.filter(r => r.type !== 'skipped');
+  const profile     = getProfile() || {};
+  const validRuns   = runs.filter(r => r.type !== 'skipped');
   const skippedRuns = runs.filter(r => r.type === 'skipped');
-  const skipRate = runs.length > 0 ? Math.round((skippedRuns.length / runs.length) * 100) : 0;
+  const skipRate    = runs.length > 0 ? Math.round((skippedRuns.length / runs.length) * 100) : 0;
   const recentSkips = runs.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10).filter(r => r.type === 'skipped').length;
-  const paces    = validRuns.filter(r => r.pace).map(r => r.pace);
-  const bestPace = paces.length ? Math.min(...paces) : null;
-  const avgPace  = paces.length ? (paces.reduce((a, b) => a + b, 0) / paces.length) : null;
-  const recent   = runs.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 25);
-  const histText = recent.map(r => {
+  const paces       = validRuns.filter(r => r.pace).map(r => r.pace);
+  const bestPace    = paces.length ? Math.min(...paces) : null;
+  const avgPace     = paces.length ? (paces.reduce((a, b) => a + b, 0) / paces.length) : null;
+  const recent      = runs.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 25);
+  const histText    = recent.map(r => {
     if (r.type === 'skipped') return `${r.date}: SKIPPED (was ${r.originalType || 'session'})`;
     return `${r.date}: ${r.type}, ${(r.dist || 0).toFixed(1)}km${r.pace ? ', pace ' + paceStr(r.pace) : ''}${r.effort ? ', effort ' + r.effort + '/10' : ''}${r.notes ? ', notes: "' + r.notes + '"' : ''}`;
   }).join('\n');
 
-  return `You are RunCoach, an expert AI running coach built into the RunTrack app. You give personalized, data-driven training advice based on the runner's actual history.
+  // Gap analysis
+  const today = new Date();
+  const sortedValid = validRuns.slice().sort((a, b) => b.date.localeCompare(a.date));
+  const lastRun = sortedValid.length > 0 ? sortedValid[0] : null;
+  const daysSinceLast = lastRun
+    ? Math.floor((today - new Date(lastRun.date + 'T00:00:00')) / (1000 * 60 * 60 * 24))
+    : null;
+  const gapNote = daysSinceLast === null ? 'No runs logged yet.'
+    : daysSinceLast === 0 ? 'Runner trained today.'
+    : daysSinceLast === 1 ? 'Last run was yesterday.'
+    : `Last run was ${daysSinceLast} days ago.`;
+
+  // Weekly volume for last 3 weeks
+  const weekKm = [0, 1, 2].map(i => {
+    const end   = new Date(today); end.setDate(end.getDate() - i * 7);
+    const start = new Date(end);   start.setDate(start.getDate() - 7);
+    const es = end.toISOString().split('T')[0], ss = start.toISOString().split('T')[0];
+    return validRuns.filter(r => r.date >= ss && r.date < es).reduce((s, r) => s + (r.dist || 0), 0);
+  });
+  const avgWeeklyKm = weekKm.reduce((s, v) => s + v, 0) / 3;
+
+  return `You are RunCoach, an expert AI running coach built into the RunTrack app. You give personalised, data-driven training advice based on the runner's actual logged history — there is no fixed plan.
 
 USER PROFILE:
-- Main goal: ${profile.goal || 'Not set'}
+- Primary goal: ${profile.goal || 'Not set'} ← this is the north star for every suggestion
 - Fitness level: ${profile.fitnessLevel || 'Unknown'}
 - Available training days/week: ${profile.daysPerWeek || '3'}
 - Current estimated 5K time: ${profile.current5K || 'Not provided'}
@@ -601,17 +568,26 @@ RUNNING STATS:
 - Best logged pace: ${bestPace ? paceStr(bestPace) : 'No data yet'}
 - Average pace: ${avgPace ? paceStr(avgPace) : 'No data yet'}
 
+TRAINING LOAD & GAPS:
+- ${gapNote}
+- km this week: ${weekKm[0].toFixed(1)} km
+- km last week: ${weekKm[1].toFixed(1)} km
+- km two weeks ago: ${weekKm[2].toFixed(1)} km
+- 3-week average weekly km: ${avgWeeklyKm.toFixed(1)} km
+
 RECENT RUN HISTORY (newest first):
 ${histText || 'No runs logged yet.'}
 
 COACHING RULES:
-1. Base ALL suggestions on the actual history above — never make up generic plans
-2. If skip rate in last 10 sessions > 40%, suggest lower volume/intensity and prioritise consistency
-3. Never increase weekly volume more than 10% from the recent 3-week average
-4. Be warm, direct, and specific — avoid vague advice
-5. Keep responses concise. For analysis, use plain text paragraphs (no excessive bullet lists)
-6. If no runs are logged, ask them about their recent activity before suggesting a workout
-7. Adapt tone to the runner's level — don't overcomplicate things for beginners`;
+1. The runner's GOAL is the north star — every workout must move them toward it
+2. Base ALL suggestions on actual history above — never invent generic plans
+3. Use gap analysis: if >5 days since last run, ease them back in; if >10 days, treat as returning from a break and start conservatively
+4. If skip rate in last 10 sessions > 40%, prioritise consistency over intensity — suggest shorter, easier sessions
+5. Never increase weekly volume more than 10% above the 3-week average
+6. Be warm, direct, and specific — avoid vague advice
+7. Keep responses concise — plain paragraphs, no excessive bullet lists
+8. If no runs are logged, ask about recent activity before suggesting a workout
+9. Adapt tone to the runner's level — don't overcomplicate things for beginners`;
 }
 
 // ── AI: FETCH WORKOUT SUGGESTION (via server) ──────────────────────────────

@@ -31,12 +31,9 @@ const WEIGHTS     = {easy:1,tempo:2.2,interval:3.5,long:1.8,optional:1.2,custom:
 const TYPE_COLORS = {easy:'#639922',tempo:'#BA7517',interval:'#E24B4A',long:'#378ADD',optional:'#7F77DD',custom:'#7F77DD',skipped:'#ccc'};
 const EFFORT_DESC = ['','very easy','easy','comfortable','moderate-easy','moderate','moderate-hard','hard','very hard','near max','all out'];
 
-const WEEK_TARGETS = {
-  interval:[[4.833,5.167],[4.583,4.917],[4.5,4.833],[4.833,5.167],[4.333,4.667],[4.083,4.417],[4.0,4.333],[3.917,4.25],[4.333,4.667],[3.917,4.167],[3.667,4.0],[3.583,3.917],[3.333,3.667]],
-  tempo:    [[5.167,5.333],[4.917,5.083],[4.833,5.0],[5.167,5.333],[4.75,4.917],[4.583,4.75],[4.417,4.583],[4.333,4.5],[4.75,4.917],[4.333,4.5],[4.0,4.333],[3.917,4.167],[3.667,3.833]],
-  long:     [[6.5,7.0],[6.167,6.667],[6.0,6.5],[6.5,7.0],[6.0,6.5],[5.917,6.333],[5.75,6.0],[5.667,5.917],[6.0,6.5],[5.667,6.0],[5.5,5.833],[5.5,5.833],[5.667,6.0]],
-  easy:     [[6.5,7.0],[6.167,6.667],[6.0,6.5],[6.5,7.0],[6.0,6.5],[5.917,6.333],[5.75,6.0],[5.667,5.917],[6.0,6.5],[5.667,6.0],[5.5,5.833],[5.5,5.833],[5.667,6.0]]
-};
+
+
+
 
 
 
@@ -46,8 +43,6 @@ let effortVal = 5;
 let activeCharts = {};
 let activeChartName = 'fitness';
 let editMode = false;
-let activeCompareType = 'interval';
-let compareChart = null;
 let chatHistory = [];
 let coachInitialized = false;
 
@@ -152,7 +147,7 @@ window.showPage = function(id, btn) {
   if (id === 'coach')     renderCoachPage();
   if (id === 'history')   renderHistory();
   if (id === 'charts')    renderChart(activeChartName);
-  if (id === 'compare')   renderCompare(activeCompareType);
+  if (id === 'calendar')  renderCalendar();
 };
 
 // ── DASHBOARD ──────────────────────────────────────────────────────────────
@@ -508,18 +503,111 @@ function renderPaceChart(data) {
 function renderDist(data) {
   destroyChart('dist');
   const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
-  let cum = 0; const labels = [], vals = [], ptColors = [];
-  sorted.forEach(r => {
-    if (r.type !== 'skipped') cum += (r.dist || 0);
-    labels.push(fmtDate(r.date));
-    vals.push(Math.round(cum * 10) / 10);
-    ptColors.push(r.type === 'skipped' ? 'rgba(180,180,180,0.5)' : '#639922');
-  });
+
+  // Build one data point per day in the range, 0 for rest/skipped days
+  if (!sorted.length) return;
+  const startDate = new Date(sorted[0].date + 'T00:00:00');
+  const endDate   = new Date(sorted[sorted.length - 1].date + 'T00:00:00');
+  const runMap    = {};
+  sorted.forEach(r => { if (r.type !== 'skipped') runMap[r.date] = r; });
+
+  const labels = [], vals = [], ptColors = [], ptBorder = [], ptRadii = [], runRefs = [];
+  const msPerDay = 86400000;
+  let lastRunDateStr = null;
+  sorted.filter(r => r.type !== 'skipped').forEach(r => { if (!lastRunDateStr || r.date > lastRunDateStr) lastRunDateStr = r.date; });
+
+  for (let d = new Date(startDate); d <= endDate; d = new Date(d.getTime() + msPerDay)) {
+    const ds = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    const run = runMap[ds];
+    const dist = run ? Math.round((run.dist || 0) * 10) / 10 : 0;
+    const isMostRecent = ds === lastRunDateStr;
+    const isRun = !!run;
+
+    // x-axis: show label only on 1st of month or first data point
+    const isFirst = d.getTime() === startDate.getTime();
+    const isMonthStart = d.getDate() === 1;
+    labels.push((isFirst || isMonthStart) ? d.toLocaleDateString('en-GB', {month:'short', year:'2-digit'}) : '');
+
+    vals.push(dist);
+    runRefs.push(run || null);
+
+    if (!isRun) {
+      ptColors.push('transparent');
+      ptBorder.push('transparent');
+      ptRadii.push(0);
+    } else if (isMostRecent) {
+      ptColors.push('#C8691A');
+      ptBorder.push('#C8691A');
+      ptRadii.push(5);
+    } else {
+      ptColors.push('transparent');
+      ptBorder.push('#C8691A');
+      ptRadii.push(4);
+    }
+  }
+
+  // Dynamic y-axis: fit actual data with a little headroom
+  const maxDist = Math.max(...vals, 1);
+  const yMax = Math.ceil(maxDist / 2) * 2 + 2;
+  const yStep = yMax <= 10 ? 2 : yMax <= 20 ? 5 : 10;
+
   activeCharts['dist'] = new Chart(document.getElementById('c-dist').getContext('2d'), {
-    type: 'line', data: { labels, datasets: [{ label:'Total km', data:vals, borderColor:'#639922', backgroundColor:'rgba(99,153,34,0.07)', fill:true, tension:0.3, pointRadius:4, pointBackgroundColor:ptColors, pointBorderColor:ptColors }] },
-    options: { responsive:true, maintainAspectRatio:false,
-      plugins: { legend:{display:false}, tooltip:{ callbacks:{ label:(ctx) => { const r = sorted[ctx.dataIndex]; return r.type === 'skipped' ? 'Skipped — total: ' + ctx.parsed.y + ' km' : 'Total: ' + ctx.parsed.y + ' km'; } } } },
-      scales: { y:{ beginAtZero:true, grid:{color:'rgba(128,128,128,0.1)'}, ticks:{color:'#888', callback:v=>v+' km'} }, x:{ grid:{display:false}, ticks:{color:'#888', maxRotation:35, autoSkip:true, maxTicksLimit:8} } }
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Distance',
+        data: vals,
+        borderColor: '#C8691A',
+        backgroundColor: 'rgba(200,105,26,0.18)',
+        fill: true,
+        tension: 0,
+        pointRadius: ptRadii,
+        pointBackgroundColor: ptColors,
+        pointBorderColor: ptBorder,
+        pointBorderWidth: 2,
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          filter: (item) => runRefs[item.dataIndex] !== null,
+          callbacks: {
+            title: (items) => {
+              const r = runRefs[items[0].dataIndex];
+              return r ? r.date : '';
+            },
+            label: (ctx) => {
+              const r = runRefs[ctx.dataIndex];
+              if (!r) return null;
+              let s = r.type.charAt(0).toUpperCase() + r.type.slice(1) + ': ' + (r.dist || 0).toFixed(1) + ' km';
+              if (r.pace) s += ' · ' + paceStr(r.pace);
+              return s;
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: yMax,
+          grid: { color: 'rgba(128,128,128,0.1)' },
+          ticks: { color: '#888', stepSize: yStep, callback: v => v + ' km' }
+        },
+        x: {
+          grid: { display: false },
+          ticks: {
+            color: '#888',
+            maxRotation: 0,
+            autoSkip: false,
+            callback: function(val, idx) { return labels[idx] || ''; }
+          }
+        }
+      }
     }
   });
 }
@@ -532,41 +620,6 @@ function renderEffort(data) {
     options: { responsive:true, maintainAspectRatio:false,
       plugins: { legend:{display:false}, tooltip:{ callbacks:{ label:(ctx) => { const r = sorted[ctx.dataIndex]; return r.type === 'skipped' ? 'Skipped' : 'Effort: ' + ctx.parsed.y + '/10 (' + r.type + ')'; } } } },
       scales: { y:{ min:0, max:10, grid:{color:'rgba(128,128,128,0.1)'}, ticks:{color:'#888', stepSize:2} }, x:{ grid:{display:false}, ticks:{color:'#888', maxRotation:35, autoSkip:true, maxTicksLimit:8} } }
-    }
-  });
-}
-
-// ── COMPARISON ─────────────────────────────────────────────────────────────
-window.showCompare = function(type, btn) {
-  activeCompareType = type;
-  document.querySelectorAll('.comp-tab').forEach(t => t.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  renderCompare(type);
-};
-function renderCompare(type) {
-  if (compareChart) { try { compareChart.destroy(); } catch(e) {} compareChart = null; }
-  const typeRuns = runs.filter(r => r.type === type && r.pace).sort((a, b) => a.date.localeCompare(b.date));
-  const empty  = document.getElementById('compare-empty');
-  const canvas = document.getElementById('c-compare');
-  if (!typeRuns.length) { empty.style.display = 'block'; canvas.style.display = 'none'; return; }
-  empty.style.display = 'none'; canvas.style.display = 'block';
-  const targets = WEEK_TARGETS[type] || WEEK_TARGETS['easy'];
-  const labels  = typeRuns.map(r => fmtDate(r.date));
-  const actuals = typeRuns.map(r => Math.round(r.pace * 100) / 100);
-  const tMins   = typeRuns.map(r => targets[Math.min(r.week - 1, 12)][0]);
-  const tMaxs   = typeRuns.map(r => targets[Math.min(r.week - 1, 12)][1]);
-  const barColors = typeRuns.map((r, i) => { const p = r.pace; if (p >= tMins[i] && p <= tMaxs[i]) return '#639922'; if (p < tMins[i] - 0.3 || p > tMaxs[i] + 0.5) return '#E24B4A'; return '#BA7517'; });
-  const { min, max } = paceAxisRange([...actuals, ...tMins, ...tMaxs], 0.3);
-  compareChart = new Chart(canvas.getContext('2d'), {
-    type: 'bar',
-    data: { labels, datasets: [
-      { label:'Your pace', data:actuals, backgroundColor:barColors, borderRadius:4, order:2 },
-      { label:'Target min', data:tMins, type:'line', borderColor:'rgba(55,138,221,0.5)', borderDash:[4,4], pointRadius:0, fill:false, order:1 },
-      { label:'Target max', data:tMaxs, type:'line', borderColor:'rgba(55,138,221,0.5)', borderDash:[4,4], pointRadius:0, fill:'-1', backgroundColor:'rgba(55,138,221,0.08)', order:1 }
-    ]},
-    options: { responsive:true, maintainAspectRatio:false,
-      plugins: { legend:{ display:true, labels:{ color:'#888', boxWidth:10, font:{size:11}, filter: i => i.text !== 'Target max' } } },
-      scales: { y:{ reverse:true, min, max, grid:{color:'rgba(128,128,128,0.1)'}, ticks:{color:'#888', callback: v => { const m=Math.floor(v),s=Math.round((v-m)*60); return m+':'+String(s).padStart(2,'0'); }} }, x:{ grid:{display:false}, ticks:{color:'#888', maxRotation:35, autoSkip:true, maxTicksLimit:10} } }
     }
   });
 }
@@ -1001,6 +1054,116 @@ window.finishOnboarding = function() {
   document.getElementById('ob-overlay').style.display = 'none';
   document.getElementById('profile-btn').style.display = '';
   renderDashboard();
+};
+
+// ── CALENDAR ───────────────────────────────────────────────────────────────
+let calYear  = new Date().getFullYear();
+let calMonth = new Date().getMonth(); // 0-indexed
+
+window.showCalendar = function() {
+  calYear  = new Date().getFullYear();
+  calMonth = new Date().getMonth();
+  renderCalendar();
+};
+
+window.calPrev = function() {
+  calMonth--;
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  renderCalendar();
+};
+
+window.calNext = function() {
+  calMonth++;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  renderCalendar();
+};
+
+function renderCalendar() {
+  const container = document.getElementById('cal-container');
+  if (!container) return;
+
+  // Build run map: date string → run object
+  const runMap = {};
+  runs.forEach(r => { runMap[r.date] = r; });
+
+  const today = new Date();
+  const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+
+  const monthName = new Date(calYear, calMonth, 1).toLocaleDateString('en-GB', {month:'long', year:'numeric'});
+  const firstDay  = new Date(calYear, calMonth, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  // Shift so week starts Monday
+  const startOffset = (firstDay + 6) % 7;
+
+  const dayHeaders = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+  let cells = '';
+  // Empty cells before first day
+  for (let i = 0; i < startOffset; i++) cells += `<div class="cal-cell cal-empty"></div>`;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = calYear + '-' + String(calMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    const run = runMap[ds];
+    const isToday = ds === todayStr;
+    const dot = run
+      ? `<div class="cal-dot" style="background:${run.type === 'skipped' ? '#ccc' : (TYPE_COLORS[run.type] || '#888')}"></div>`
+      : '';
+    const distLabel = (run && run.type !== 'skipped' && run.dist)
+      ? `<div class="cal-dist">${run.dist.toFixed(1)}</div>`
+      : '';
+    const skippedMark = (run && run.type === 'skipped') ? `<div class="cal-skipped">✕</div>` : '';
+    const hasRun = !!run;
+    cells += `
+      <div class="cal-cell ${isToday ? 'cal-today' : ''} ${hasRun ? 'cal-has-run' : ''}" onclick="calDayClick('${ds}')">
+        <div class="cal-day-num">${d}</div>
+        ${dot}
+        ${distLabel}
+        ${skippedMark}
+      </div>`;
+  }
+
+  container.innerHTML = `
+    <div class="cal-header">
+      <button class="btn btn-sm" onclick="calPrev()">‹</button>
+      <span class="cal-month-label">${monthName}</span>
+      <button class="btn btn-sm" onclick="calNext()">‹</button>
+    </div>
+    <div class="cal-grid">
+      ${dayHeaders.map(h => `<div class="cal-day-hdr">${h}</div>`).join('')}
+      ${cells}
+    </div>
+    <div class="cal-legend">
+      ${Object.entries(TYPE_COLORS).filter(([t]) => t !== 'skipped').map(([t, c]) =>
+        `<span class="cal-legend-item"><span class="cal-legend-dot" style="background:${c}"></span>${t}</span>`
+      ).join('')}
+      <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#ccc"></span>skipped</span>
+    </div>
+    <div class="cal-detail" id="cal-detail"></div>`;
+
+  // Fix the next arrow (reuse same icon, just flip)
+  container.querySelector('.cal-header button:last-child').style.transform = 'rotate(180deg)';
+}
+
+window.calDayClick = function(ds) {
+  const detail = document.getElementById('cal-detail');
+  if (!detail) return;
+  const run = runs.find(r => r.date === ds);
+  if (!run) { detail.innerHTML = `<div class="cal-detail-empty">${ds} — rest day</div>`; return; }
+  const bt = badgeType(run.type);
+  detail.innerHTML = `
+    <div class="cal-detail-card">
+      <span class="run-badge badge-${bt}">${run.label || run.type}</span>
+      <span style="font-size:13px;font-weight:600;margin-left:6px">${run.date}</span>
+      ${run.type !== 'skipped'
+        ? `<div style="margin-top:8px;font-size:13px;color:var(--text2)">
+            ${run.dist ? run.dist.toFixed(1) + ' km' : ''}
+            ${run.pace ? ' · ' + paceStr(run.pace) : ''}
+            ${run.effort ? ' · effort ' + run.effort + '/10' : ''}
+           </div>
+           ${run.notes ? `<div style="margin-top:4px;font-size:12px;color:var(--text3)">${escHtml(run.notes)}</div>` : ''}`
+        : `<div style="margin-top:8px;font-size:13px;color:var(--text3)">Session skipped${run.originalType ? ' (was ' + run.originalType + ')' : ''}</div>`
+      }
+    </div>`;
 };
 
 // ── INIT ───────────────────────────────────────────────────────────────────

@@ -1082,7 +1082,6 @@ function renderCalendar() {
   const container = document.getElementById('cal-container');
   if (!container) return;
 
-  // Build run map: date string → run object
   const runMap = {};
   runs.forEach(r => { runMap[r.date] = r; });
 
@@ -1090,35 +1089,34 @@ function renderCalendar() {
   const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
 
   const monthName = new Date(calYear, calMonth, 1).toLocaleDateString('en-GB', {month:'long', year:'numeric'});
-  const firstDay  = new Date(calYear, calMonth, 1).getDay(); // 0=Sun
+  const firstDay  = new Date(calYear, calMonth, 1).getDay();
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
-  // Shift so week starts Monday
-  const startOffset = (firstDay + 6) % 7;
+  const startOffset = (firstDay + 6) % 7; // Monday-first
 
   const dayHeaders = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 
   let cells = '';
-  // Empty cells before first day
   for (let i = 0; i < startOffset; i++) cells += `<div class="cal-cell cal-empty"></div>`;
 
   for (let d = 1; d <= daysInMonth; d++) {
     const ds = calYear + '-' + String(calMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
     const run = runMap[ds];
     const isToday = ds === todayStr;
-    const dot = run
-      ? `<div class="cal-dot" style="background:${run.type === 'skipped' ? '#ccc' : (TYPE_COLORS[run.type] || '#888')}"></div>`
+    const isRun = run && run.type !== 'skipped';
+    const color = isRun ? (TYPE_COLORS[run.type] || '#888') : null;
+
+    const circleStyle = isRun
+      ? `background:${color};box-shadow:0 2px 8px ${color}55;`
       : '';
-    const distLabel = (run && run.type !== 'skipped' && run.dist)
-      ? `<div class="cal-dist">${run.dist.toFixed(1)}</div>`
+
+    const distLabel = isRun && run.dist
+      ? `<div class="cal-dist" style="color:${color}">${run.dist.toFixed(1)} km</div>`
       : '';
-    const skippedMark = (run && run.type === 'skipped') ? `<div class="cal-skipped">✕</div>` : '';
-    const hasRun = !!run;
+
     cells += `
-      <div class="cal-cell ${isToday ? 'cal-today' : ''} ${hasRun ? 'cal-has-run' : ''}" onclick="calDayClick('${ds}')">
-        <div class="cal-day-num">${d}</div>
-        ${dot}
+      <div class="cal-cell ${isToday ? 'cal-today' : ''} ${isRun ? 'cal-has-run' : ''}" onclick="calDayClick('${ds}')">
+        <div class="cal-day-num" style="${circleStyle}">${d}</div>
         ${distLabel}
-        ${skippedMark}
       </div>`;
   }
 
@@ -1126,7 +1124,7 @@ function renderCalendar() {
     <div class="cal-header">
       <button class="btn btn-sm" onclick="calPrev()">‹</button>
       <span class="cal-month-label">${monthName}</span>
-      <button class="btn btn-sm" onclick="calNext()">‹</button>
+      <button class="btn btn-sm" onclick="calNext()" style="transform:rotate(180deg)">‹</button>
     </div>
     <div class="cal-grid">
       ${dayHeaders.map(h => `<div class="cal-day-hdr">${h}</div>`).join('')}
@@ -1136,12 +1134,8 @@ function renderCalendar() {
       ${Object.entries(TYPE_COLORS).filter(([t]) => t !== 'skipped').map(([t, c]) =>
         `<span class="cal-legend-item"><span class="cal-legend-dot" style="background:${c}"></span>${t}</span>`
       ).join('')}
-      <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#ccc"></span>skipped</span>
     </div>
     <div class="cal-detail" id="cal-detail"></div>`;
-
-  // Fix the next arrow (reuse same icon, just flip)
-  container.querySelector('.cal-header button:last-child').style.transform = 'rotate(180deg)';
 }
 
 window.calDayClick = function(ds) {

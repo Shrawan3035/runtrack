@@ -28,14 +28,14 @@
   font-size: 11px;
   font-weight: 600;
   color: var(--text3);
-  padding: 4px 0 6px;
+  padding: 4px 0 8px;
   text-transform: uppercase;
   letter-spacing: .04em;
 }
 .cal-cell {
-  min-height: 52px;
+  min-height: 56px;
   border-radius: 8px;
-  padding: 5px 4px 4px;
+  padding: 5px 2px 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -43,50 +43,56 @@
   cursor: pointer;
   transition: background .15s;
   background: transparent;
-  position: relative;
 }
 .cal-cell:hover { background: var(--bg2); }
-.cal-empty { cursor: default; }
-.cal-empty:hover { background: transparent; }
-.cal-today .cal-day-num {
-  background: var(--blue, #378ADD);
-  color: #fff;
-  border-radius: 50%;
-  width: 22px;
-  height: 22px;
+.cal-empty { cursor: default; pointer-events: none; }
+
+/* The date number wrapper */
+.cal-day-num {
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-.cal-has-run { background: var(--bg2, rgba(128,128,128,0.07)); }
-.cal-has-run:hover { background: var(--bg3, rgba(128,128,128,0.13)); }
-.cal-day-num {
-  font-size: 12px;
+  border-radius: 50%;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text2);
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.cal-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
+  position: relative;
   flex-shrink: 0;
 }
+
+/* Run day: filled circle */
+.cal-cell.cal-has-run .cal-day-num {
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+/* Today indicator (non-run day): small dot below number */
+.cal-cell.cal-today:not(.cal-has-run) .cal-day-num::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--blue, #378ADD);
+}
+
+/* Today + run day: white ring around the filled circle */
+.cal-cell.cal-today.cal-has-run .cal-day-num {
+  box-shadow: 0 0 0 2.5px var(--bg, #fff), 0 0 0 4.5px currentColor;
+}
+
 .cal-dist {
   font-size: 10px;
-  color: var(--text3);
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1;
 }
-.cal-skipped {
-  font-size: 10px;
-  color: #aaa;
-  line-height: 1;
-}
+
 .cal-legend {
   display: flex;
   flex-wrap: wrap;
@@ -104,8 +110,8 @@
   text-transform: capitalize;
 }
 .cal-legend-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
 }

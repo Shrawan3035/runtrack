@@ -6,48 +6,143 @@
 <title>RunTrack — AI Coach</title>
 <link rel="stylesheet" href="style.css">
 <style>
-/* ── CALENDAR ─────────────────────────────────────────────── */
+/* ── FAB — Floating Log Run button ───────────────────────── */
+.fab {
+  position: fixed;
+  bottom: 24px;
+  right: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--green, #639922);
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
+  border: none;
+  box-shadow: 0 4px 16px rgba(99,153,34,0.45);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 900;
+  transition: transform .15s, box-shadow .15s;
+}
+.fab:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(99,153,34,0.55); }
+.fab:active { transform: scale(0.96); }
+
+/* ── PERSONAL BESTS ──────────────────────────────────────── */
+.pb-scroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.pb-scroll::-webkit-scrollbar { display: none; }
+.pb-card {
+  flex: 0 0 130px;
+  background: var(--bg2, rgba(128,128,128,0.07));
+  border: 1px solid var(--border, rgba(128,128,128,0.12));
+  border-radius: 12px;
+  padding: 12px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pb-icon { font-size: 18px; line-height: 1; margin-bottom: 2px; }
+.pb-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; line-height: 1.2; }
+.pb-val { font-size: 15px; font-weight: 700; color: var(--text); margin-top: 2px; }
+.pb-sub { font-size: 10px; color: var(--text3); margin-top: 1px; }
+
+/* ── LIVE PACE PREVIEW ───────────────────────────────────── */
+#pace-preview {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--green, #639922);
+  margin-top: 4px;
+  min-height: 18px;
+  display: block;
+}
+
+/* ── HISTORY INLINE MENU ─────────────────────────────────── */
+.run-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, rgba(128,128,128,0.18));
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 100;
+  min-width: 110px;
+  overflow: hidden;
+}
+.run-menu button {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+.run-menu button:hover { background: var(--bg2); }
+.run-menu button.danger { color: var(--red, #E24B4A); }
+
+/* ── CALENDAR ────────────────────────────────────────────── */
 .cal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1rem;
+  gap: 8px;
 }
+.cal-header > div { text-align: center; }
 .cal-month-label {
   font-size: 15px;
   font-weight: 600;
   color: var(--text);
+  display: block;
 }
+.cal-month-summary {
+  font-size: 11px;
+  color: var(--green, #639922);
+  font-weight: 600;
+  margin-top: 2px;
+}
+.cal-grid-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .cal-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  grid-template-columns: repeat(7, 1fr) 48px;
+  gap: 3px;
+  min-width: 320px;
 }
 .cal-day-hdr {
   text-align: center;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--text3);
   padding: 4px 0 8px;
   text-transform: uppercase;
   letter-spacing: .04em;
 }
+.cal-wk-hdr { font-size: 9px; color: var(--text3); }
 .cal-cell {
-  min-height: 56px;
+  min-height: 54px;
   border-radius: 8px;
-  padding: 5px 2px 4px;
+  padding: 4px 2px 3px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 3px;
   cursor: pointer;
   transition: background .15s;
-  background: transparent;
 }
 .cal-cell:hover { background: var(--bg2); }
 .cal-empty { cursor: default; pointer-events: none; }
-
-/* The date number wrapper */
 .cal-day-num {
   width: 30px;
   height: 30px;
@@ -61,15 +156,10 @@
   position: relative;
   flex-shrink: 0;
 }
-
-/* Run day: filled circle */
 .cal-cell.cal-has-run .cal-day-num {
   color: #fff;
   font-weight: 700;
-  font-size: 13px;
 }
-
-/* Today indicator (non-run day): small dot below number */
 .cal-cell.cal-today:not(.cal-has-run) .cal-day-num::after {
   content: '';
   position: absolute;
@@ -81,18 +171,30 @@
   border-radius: 50%;
   background: var(--blue, #378ADD);
 }
-
-/* Today + run day: white ring around the filled circle */
 .cal-cell.cal-today.cal-has-run .cal-day-num {
   box-shadow: 0 0 0 2.5px var(--bg, #fff), 0 0 0 4.5px currentColor;
 }
-
 .cal-dist {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   line-height: 1;
 }
-
+.cal-week-total {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: var(--text3);
+  font-weight: 600;
+  border-radius: 6px;
+  background: var(--bg2, rgba(128,128,128,0.06));
+  min-height: 54px;
+  padding: 4px 2px;
+  text-align: center;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  letter-spacing: .02em;
+}
 .cal-legend {
   display: flex;
   flex-wrap: wrap;
@@ -115,9 +217,7 @@
   border-radius: 50%;
   flex-shrink: 0;
 }
-.cal-detail {
-  margin-top: .75rem;
-}
+.cal-detail { margin-top: .75rem; }
 .cal-detail-card {
   padding: 10px 12px;
   border-radius: 10px;
@@ -128,6 +228,9 @@
   font-size: 13px;
   color: var(--text3);
   padding: 8px 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
@@ -143,7 +246,7 @@
     </div>
     <div class="header-right">
       <button class="profile-btn" id="profile-btn" onclick="openSettings()" style="display:none">⚙ Profile</button>
-      <div id="sync-status" class="sync-status">Connecting…</div>
+      <div id="sync-status" class="sync-status" style="display:none"></div>
     </div>
   </div>
 
@@ -151,29 +254,20 @@
   <div class="nav">
     <button class="active" onclick="showPage('dashboard',this)">Dashboard</button>
     <button onclick="showPage('coach',this)">AI Coach</button>
-    <button onclick="showPage('log',this)">Log run</button>
     <button onclick="showPage('history',this)">History</button>
     <button onclick="showPage('charts',this)">Progress</button>
     <button onclick="showPage('calendar',this)">Calendar</button>
   </div>
 
+  <!-- FLOATING LOG RUN BUTTON -->
+  <button class="fab" onclick="showPage('log',null)" title="Log a run">+</button>
+
   <!-- DASHBOARD -->
   <div id="page-dashboard" class="page active">
     <div class="metric-grid" id="dash-metrics"></div>
     <div id="dash-ai-card"></div>
+    <div class="card" id="dash-pbs"></div>
     <div class="card" id="this-week-card"></div>
-    <div class="card">
-      <div class="sec">Goal tracker</div>
-      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
-        <span style="color:var(--text2)">Best logged pace</span>
-        <span id="best-pace-disp" style="font-weight:600">—</span>
-      </div>
-      <div class="prog-bar"><div class="prog-fill" id="goal-bar" style="width:0%"></div></div>
-      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:4px">
-        <span id="goal-start-label">Start: 5:30/km</span><span id="goal-end-label">Target: 4:00/km</span>
-      </div>
-      <div class="goal-note" id="goal-note">Log some runs to track your progress.</div>
-    </div>
   </div>
 
   <!-- AI COACH -->
@@ -196,26 +290,40 @@
         <div><label>Date</label><input type="date" id="log-date"></div>
         <div><label>Run type</label>
           <select id="log-type" onchange="toggleCustomRow()">
-            <option value="easy">Easy</option><option value="tempo">Tempo</option>
-            <option value="interval">Interval</option><option value="long">Long run</option>
-            <option value="optional">Optional / Recovery</option><option value="custom">Custom</option>
+            <option value="easy">Easy</option>
+            <option value="tempo">Tempo</option>
+            <option value="interval">Interval</option>
+            <option value="long">Long run</option>
+            <option value="optional">Optional / Recovery</option>
+            <option value="custom">Custom</option>
           </select>
         </div>
       </div>
-      <div id="log-custom-row" style="display:none"><label>Custom name</label><input type="text" id="log-custom" placeholder="e.g. Fartlek, Race, Hill repeats"></div>
-      <div class="row">
-        <div><label>Distance (km)</label><input type="number" id="log-dist" placeholder="e.g. 5.0" step="0.1" min="0"></div>
-        <div><label>Duration (mm:ss or h:mm:ss)</label><input type="text" id="log-time" placeholder="e.g. 27:30"></div>
+      <div id="log-custom-row" style="display:none">
+        <label>Custom name</label>
+        <input type="text" id="log-custom" placeholder="e.g. Fartlek, Race, Hill repeats">
       </div>
+      <div class="row">
+        <div>
+          <label>Distance (km)</label>
+          <input type="number" id="log-dist" placeholder="e.g. 5.0" step="0.1" min="0" oninput="updateLivePace()">
+        </div>
+        <div>
+          <label>Duration</label>
+          <input type="text" id="log-time" placeholder="e.g. 27:30" oninput="updateLivePace()">
+        </div>
+      </div>
+      <span id="pace-preview"></span>
       <div style="margin-top:12px">
         <label>Effort — <span id="effort-label" style="color:var(--text);font-weight:600;text-transform:none;letter-spacing:0">5 · moderate</span></label>
         <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
-          <span style="font-size:11px;color:var(--text3)">easy</span>
           <div style="display:flex;gap:4px" id="effort-dots"></div>
-          <span style="font-size:11px;color:var(--text3)">max</span>
         </div>
       </div>
-      <div><label>Notes (optional)</label><textarea id="log-notes" rows="2" placeholder="How did it feel? Route, conditions…"></textarea></div>
+      <div style="margin-top:12px">
+        <label>Notes (optional)</label>
+        <textarea id="log-notes" rows="2" placeholder="How did it feel? Route, conditions…"></textarea>
+      </div>
       <div style="margin-top:1.25rem;display:flex;gap:10px">
         <button class="btn btn-primary" onclick="logRun()">Save run</button>
         <button class="btn" onclick="clearLogForm()">Clear</button>
@@ -229,26 +337,27 @@
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;flex-wrap:wrap;gap:8px">
         <div class="sec" style="margin:0">Run history</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <select id="hist-filter" onchange="renderHistory()" style="width:auto;font-size:12px;padding:5px 10px">
-            <option value="all">All types</option><option value="easy">Easy</option>
-            <option value="tempo">Tempo</option><option value="interval">Interval</option>
-            <option value="long">Long run</option><option value="optional">Optional</option>
-            <option value="skipped">Skipped</option><option value="custom">Custom</option>
-          </select>
-          <button class="btn btn-sm" id="edit-toggle-btn" onclick="toggleEditMode()">Edit runs</button>
-        </div>
+        <select id="hist-filter" onchange="renderHistory()" style="width:auto;font-size:12px;padding:5px 10px">
+          <option value="all">All types</option>
+          <option value="easy">Easy</option>
+          <option value="tempo">Tempo</option>
+          <option value="interval">Interval</option>
+          <option value="long">Long run</option>
+          <option value="optional">Optional</option>
+          <option value="custom">Custom</option>
+        </select>
       </div>
       <ul class="run-list" id="run-list"></ul>
-      <div id="hist-empty" class="empty">No runs yet. Head to Log run to get started!</div>
+      <div id="hist-empty" class="empty">No runs yet. Tap the + button to log your first run!</div>
     </div>
   </div>
 
   <!-- CHARTS / PROGRESS -->
   <div id="page-charts" class="page">
     <div class="tab-group">
-      <button class="tab active" onclick="showChart('fitness',this)">Fitness score</button>
-      <button class="tab" onclick="showChart('pace',this)">Pace by type</button>
+      <button class="tab active" onclick="showChart('fitness',this)">Fitness</button>
+      <button class="tab" onclick="showChart('weeklykm',this)">Weekly km</button>
+      <button class="tab" onclick="showChart('pace',this)">Pace</button>
       <button class="tab" onclick="showChart('distance',this)">Distance</button>
       <button class="tab" onclick="showChart('effort',this)">Effort</button>
     </div>
@@ -258,11 +367,42 @@
         <option value="all">All time</option>
       </select>
     </div>
-    <div id="chart-fitness"><div class="card"><div class="sec">Weighted fitness progression</div><div style="font-size:12px;color:var(--text3);margin-bottom:.75rem">Intervals 3.5× · Tempo 2.2× · Long 1.8× · Easy 1×</div><div class="chart-wrap" style="height:260px"><canvas id="c-fitness"></canvas></div></div></div>
-    <div id="chart-pace" style="display:none"><div class="card"><div class="sec">Pace by run type</div><div style="font-size:12px;color:var(--text3);margin-bottom:.75rem">Lower = faster.</div><div class="chart-wrap" style="height:280px"><canvas id="c-pace"></canvas></div></div></div>
-    <div id="chart-distance" style="display:none"><div class="card"><div class="sec">Run distances</div><div style="font-size:12px;color:var(--text3);margin-bottom:.75rem">Each run's distance. Drops to 0 on rest days.</div><div class="chart-wrap" style="height:260px"><canvas id="c-dist"></canvas></div></div></div>
+
+    <div id="chart-fitness">
+      <div class="card">
+        <div class="sec">Fitness progression</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:.75rem">Weighted score — intervals count more than easy runs.</div>
+        <div class="chart-wrap" style="height:260px"><canvas id="c-fitness"></canvas></div>
+      </div>
+    </div>
+
+    <div id="chart-weeklykm" style="display:none">
+      <div class="card">
+        <div class="sec">Weekly km</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:.75rem">Total distance per week. Spot trends and build volume safely.</div>
+        <div class="chart-wrap" style="height:260px"><canvas id="c-weeklykm"></canvas></div>
+      </div>
+    </div>
+
+    <div id="chart-pace" style="display:none">
+      <div class="card">
+        <div class="sec">Pace by run type</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:.75rem">Lower = faster. Track improvement per run type.</div>
+        <div class="chart-wrap" style="height:280px"><canvas id="c-pace"></canvas></div>
+      </div>
+    </div>
+
+    <div id="chart-distance" style="display:none">
+      <div class="card">
+        <div class="sec">Run distances</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:.75rem">Each run's distance. Drops to 0 on rest days.</div>
+        <div class="chart-wrap" style="height:260px"><canvas id="c-dist"></canvas></div>
+      </div>
+    </div>
+
     <div id="chart-effort" style="display:none">
-      <div class="card"><div class="sec">Effort per run</div>
+      <div class="card">
+        <div class="sec">Effort per run</div>
         <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;font-size:11px;color:var(--text2)">
           <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#639922;display:inline-block"></span>Easy</span>
           <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#BA7517;display:inline-block"></span>Tempo</span>
@@ -273,6 +413,7 @@
         <div class="chart-wrap" style="height:260px"><canvas id="c-effort"></canvas></div>
       </div>
     </div>
+
     <div id="charts-empty" class="empty" style="display:none">Log at least one run to see your progress charts.</div>
   </div>
 

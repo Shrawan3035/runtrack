@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, orderBy, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // ── FIREBASE CONFIG ────────────────────────────────────────────────────────
 const firebaseConfig = {
@@ -64,6 +64,29 @@ async function saveRun(run) {
 async function removeRun(id) {
   try { setSyncStatus('syncing'); await deleteDoc(doc(db, 'runs', id)); setSyncStatus('ok'); }
   catch(e) { console.error(e); setSyncStatus('err'); }
+}
+
+// ── CHAT CONTEXT (Firestore) ────────────────────────────────────────────────
+const CHAT_DOC = doc(db, 'chat_context', 'coach_chat');
+const MAX_SAVED_MESSAGES = 60;
+
+async function loadChatContext() {
+  try {
+    const snap = await getDoc(CHAT_DOC);
+    if (snap.exists()) return snap.data().messages || [];
+    return [];
+  } catch(e) { console.error('loadChatContext:', e); return []; }
+}
+
+async function saveChatContext(messages) {
+  try {
+    const capped = messages.slice(-MAX_SAVED_MESSAGES);
+    await setDoc(CHAT_DOC, { messages: capped, updatedAt: Date.now() });
+  } catch(e) { console.error('saveChatContext:', e); }
+}
+
+async function clearChatContext() {
+  try { await deleteDoc(CHAT_DOC); } catch(e) { console.error('clearChatContext:', e); }
 }
 
 // ── HELPERS ────────────────────────────────────────────────────────────────
@@ -687,14 +710,26 @@ function renderWeeklyKm(data) {
     if (!weekMap[wk]) weekMap[wk] = { total: 0, mon: weekMonday(r.date) };
     weekMap[wk].total += r.dist;
   });
-  const weeks = Object.entries(weekMap).sort((a, b) => a[0].localeCompare(b[0]));
-  const labels = weeks.map(([, v]) => fmtDate(v.mon));
-  const vals   = weeks.map(([, v]) => Math.round(v.total * 10) / 10);
-  const lastIdx = vals.length - 1;
 
-  const ptColors = vals.map((_, i) => i === lastIdx ? '#639922' : 'transparent');
-  const ptBorder = vals.map(() => '#639922');
-  const ptRadii  = vals.map((_, i) => i === lastIdx ? 5 : 4);
+  // Generate every week from first run to current week (zero-fill gaps like distance chart)
+  const sortedKeys = Object.keys(weekMap).sort();
+  const firstMon = new Date(weekMap[sortedKeys[0]].mon + 'T00:00:00');
+  const currentMon = new Date(weekMonday(todayStr()) + 'T00:00:00');
+
+  const labels = [], vals = [], weekRefs = [];
+  for (let d = new Date(firstMon); d <= currentMon; d.setDate(d.getDate() + 7)) {
+    const monStr = d.toISOString().split('T')[0];
+    const wk = isoWeekStr(monStr);
+    labels.push(fmtDate(monStr));
+    const km = weekMap[wk] ? Math.round(weekMap[wk].total * 10) / 10 : 0;
+    vals.push(km);
+    weekRefs.push(km > 0 ? weekMap[wk] : null);
+  }
+
+  const lastRunIdx = vals.reduce((last, v, i) => v > 0 ? i : last, -1);
+  const ptColors = vals.map((v, i) => i === lastRunIdx ? '#639922' : 'transparent');
+  const ptBorder = vals.map((v) => v > 0 ? '#639922' : 'transparent');
+  const ptRadii  = vals.map((v, i) => i === lastRunIdx ? 5 : v > 0 ? 4 : 0);
 
   const maxKm = Math.max(...vals, 1);
   const yMax  = Math.ceil(maxKm / 5) * 5 + 5;
@@ -866,8 +901,9 @@ async function renderCoachPage() {
   }
 
   if (!coachInitialized) {
-    chatHistory = [];
-    chatHistory.push({role:'assistant', content: buildCoachGreeting(profile)});
+    const savedMessages = await loadChatContext();
+    const greeting = {role:'assistant', content: buildCoachGreeting(profile)};
+    chatHistory = [greeting, ...savedMessages];
     coachInitialized = true;
   }
   renderChatUI();
@@ -948,15 +984,34 @@ window.sendChat = async function() {
   if (typingEl) typingEl.textContent = '';
   if (sendBtn) sendBtn.disabled = false;
   chatHistory.push({role:'assistant', content: reply || "I'm having trouble connecting. Please try again."});
+  // Save context to Firestore (all messages except the greeting at index 0)
+  saveChatContext(chatHistory.slice(1));
   clearWorkoutCache();
   renderChatMessages();
   input.focus();
 };
+// Clears the visual chat only — Firestore context is preserved
 window.clearChat = function() {
   const profile = getProfile();
   chatHistory = profile ? [{role:'assistant', content:buildCoachGreeting(profile)}] : [];
   coachInitialized = !!profile;
   renderChatUI();
+};
+
+// Wipes Firestore context + visual — true fresh start with the coach
+window.resetContext = async function() {
+  showModal('Reset coaching context?', 'This will permanently erase all saved coaching history. The coach will start fresh with no memory of past conversations.', [
+    {label:'Reset', style:'danger', action: async () => {
+      closeModal();
+      await clearChatContext();
+      clearWorkoutCache();
+      coachInitialized = false;
+      const profile = getProfile();
+      chatHistory = profile ? [{role:'assistant', content:buildCoachGreeting(profile)}] : [];
+      renderChatUI();
+    }},
+    {label:'Cancel', action: closeModal}
+  ]);
 };
 window.refreshWorkout = async function() {
   clearWorkoutCache();
@@ -1184,7 +1239,15 @@ initEffortDots();
 async function init() {
   setSyncStatus('syncing');
   await loadRuns();
+  // Pre-load saved chat context so workout card on dashboard has full context
   const profile = getProfile();
+  if (profile) {
+    const savedMessages = await loadChatContext();
+    if (savedMessages.length) {
+      chatHistory = [{role:'assistant', content:buildCoachGreeting(profile)}, ...savedMessages];
+      coachInitialized = true;
+    }
+  }
   if (!profile) { startOnboarding(); }
   else { document.getElementById('profile-btn').style.display = ''; }
   renderDashboard();

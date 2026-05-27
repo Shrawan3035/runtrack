@@ -6,6 +6,15 @@
 <title>RunTrack — AI Coach</title>
 <link rel="stylesheet" href="style.css">
 <style>
+/* ── DANGER BUTTON ──────────────────────────────────────────── */
+.btn-danger {
+  background: var(--red, #E24B4A) !important;
+  color: #fff !important;
+  border-color: var(--red, #E24B4A) !important;
+  opacity: 0.85;
+}
+.btn-danger:hover { opacity: 1; }
+
 /* ── FAB — Floating Log Run button ───────────────────────── */
 .fab {
   position: fixed;
@@ -274,9 +283,12 @@
   <div id="page-coach" class="page">
     <div id="coach-workout-area"></div>
     <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;flex-wrap:wrap;gap:8px">
         <div class="sec" style="margin:0">Chat with your coach</div>
-        <button class="btn btn-sm" onclick="clearChat()">Clear chat</button>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm" onclick="clearChat()" title="Clear visual chat — context is saved">Clear chat</button>
+          <button class="btn btn-sm btn-danger" onclick="resetContext()" title="Erase all saved coaching memory">Reset context</button>
+        </div>
       </div>
       <div id="coach-chat-area"></div>
     </div>

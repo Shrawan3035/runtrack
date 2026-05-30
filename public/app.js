@@ -120,7 +120,9 @@ function weekMonday(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
   const day = (d.getDay() + 6) % 7; // 0=Mon
   d.setDate(d.getDate() - day);
-  return d.toISOString().split('T')[0];
+  // Use local date methods — toISOString() returns UTC and gives the wrong
+  // day for users in UTC+ timezones (e.g. IST midnight = prev-day UTC).
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 
 function todayStr() {
@@ -130,7 +132,7 @@ function todayStr() {
 
 function friendlyDate(dateStr) {
   const today = todayStr();
-  const yesterday = (() => { const d = new Date(today + 'T00:00:00'); d.setDate(d.getDate()-1); return d.toISOString().split('T')[0]; })();
+  const yesterday = (() => { const d = new Date(today + 'T00:00:00'); d.setDate(d.getDate()-1); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); })();
   if (dateStr === today) return 'Today';
   if (dateStr === yesterday) return 'Yesterday';
   const days = Math.floor((new Date(today + 'T00:00:00') - new Date(dateStr + 'T00:00:00')) / 86400000);
@@ -147,11 +149,11 @@ function filterByRange(list) {
   const r = document.getElementById('chart-range')?.value || 'all';
   if (r === 'all') return list;
   if (r === 'last4w') {
-    const cutoff = (() => { const d = new Date(); d.setDate(d.getDate()-28); return d.toISOString().split('T')[0]; })();
+    const cutoff = (() => { const d = new Date(); d.setDate(d.getDate()-28); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); })();
     return list.filter(x => x.date >= cutoff);
   }
   if (r === 'last3m') {
-    const cutoff = (() => { const d = new Date(); d.setMonth(d.getMonth()-3); return d.toISOString().split('T')[0]; })();
+    const cutoff = (() => { const d = new Date(); d.setMonth(d.getMonth()-3); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); })();
     return list.filter(x => x.date >= cutoff);
   }
   return list.filter(x => x.date.startsWith(r));
@@ -720,7 +722,8 @@ function renderWeeklyKm(data) {
 
   const labels = [], vals = [], monStrs = [], weekRefs = [];
   for (let d = new Date(firstMon); d <= currentMon; d.setDate(d.getDate() + 7)) {
-    const monStr = d.toISOString().split('T')[0];
+    // Use local date methods — toISOString() is UTC and shifts day back in UTC+ timezones
+    const monStr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
     const wk = isoWeekStr(monStr);
     labels.push(fmtDate(monStr));
     monStrs.push(monStr);
@@ -808,7 +811,8 @@ function buildSystemPrompt() {
   const weekKm = [0, 1, 2].map(i => {
     const end   = new Date(monday + 'T00:00:00'); end.setDate(end.getDate() - i * 7);
     const start = new Date(end); start.setDate(start.getDate() - 7);
-    const es = end.toISOString().split('T')[0], ss = start.toISOString().split('T')[0];
+    const es = end.getFullYear() + '-' + String(end.getMonth()+1).padStart(2,'0') + '-' + String(end.getDate()).padStart(2,'0');
+    const ss = start.getFullYear() + '-' + String(start.getMonth()+1).padStart(2,'0') + '-' + String(start.getDate()).padStart(2,'0');
     return valid.filter(r => r.date >= ss && r.date < es).reduce((s, r) => s + (r.dist || 0), 0);
   });
   const avgWeeklyKm = weekKm.reduce((s, v) => s + v, 0) / 3;
@@ -982,9 +986,12 @@ function renderChatUI() {
     <div class="chat-welcome">${escHtml(welcomeMsg).replace(/\n/g,'<br>')}</div>
     <div class="chat-messages" id="chat-messages"></div>
     <div class="chat-typing-row" id="chat-typing"></div>
-    <div class="chat-input-row">
-      <input type="text" id="chat-input" placeholder="Ask your coach anything…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}" style="min-width:0;flex:1">
-      <button class="btn btn-primary btn-sm" id="chat-send-btn" onclick="sendChat()" style="flex-shrink:0">Send</button>
+    <div class="chat-input-row" style="align-items:flex-end">
+      <textarea id="chat-input" placeholder="Ask your coach anything… (Shift+Enter for new line)" rows="1"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}"
+        oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,140)+'px'"
+        style="min-width:0;flex:1;resize:none;overflow-y:auto;line-height:1.45;padding:8px 10px;font-family:inherit;font-size:inherit;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text)"></textarea>
+      <button class="btn btn-primary btn-sm" id="chat-send-btn" onclick="sendChat()" style="flex-shrink:0;margin-bottom:1px">Send</button>
     </div>`;
   renderChatMessages();
 }
@@ -1003,6 +1010,7 @@ window.sendChat = async function() {
   const input = document.getElementById('chat-input'); if (!input) return;
   const text = input.value.trim(); if (!text) return;
   input.value = '';
+  input.style.height = 'auto'; // reset auto-grow height after clearing
   const sendBtn = document.getElementById('chat-send-btn');
   if (sendBtn) sendBtn.disabled = true;
   chatHistory.push({role:'user', content:text});
@@ -1199,7 +1207,7 @@ function renderCalendar() {
       // Compute week total for this row
       const wMon = weekMonday(ds);
       const wSun = new Date(wMon + 'T00:00:00'); wSun.setDate(wSun.getDate() + 6);
-      const wSunStr = wSun.toISOString().split('T')[0];
+      const wSunStr = wSun.getFullYear() + '-' + String(wSun.getMonth()+1).padStart(2,'0') + '-' + String(wSun.getDate()).padStart(2,'0');
       const wkKm = runs.filter(r => r.type !== 'skipped' && r.date >= wMon && r.date <= wSunStr && r.date.startsWith(monthPrefix))
                        .reduce((s, r) => s + (r.dist || 0), 0);
       cells += `<div class="cal-week-total">${wkKm > 0 ? wkKm.toFixed(1) + ' km' : ''}</div>`;

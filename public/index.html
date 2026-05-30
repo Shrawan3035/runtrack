@@ -6,6 +6,20 @@
 <title>RunTrack — AI Coach</title>
 <link rel="stylesheet" href="style.css">
 <style>
+/* ── CHAT INPUT ROW FIX ───────────────────────────────────── */
+.chat-input-row {
+  display: flex !important;
+  gap: 8px;
+  align-items: center;
+}
+.chat-input-row input {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+}
+.chat-input-row button {
+  flex-shrink: 0 !important;
+}
+
 /* ── DANGER BUTTON ──────────────────────────────────────────── */
 .btn-danger {
   background: var(--red, #E24B4A) !important;

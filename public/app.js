@@ -711,34 +711,64 @@ function renderWeeklyKm(data) {
     weekMap[wk].total += r.dist;
   });
 
-  // Generate every week from first run to current week (zero-fill gaps like distance chart)
+  // Generate every week from first run to current week (zero-fill gaps)
   const sortedKeys = Object.keys(weekMap).sort();
   const firstMon = new Date(weekMap[sortedKeys[0]].mon + 'T00:00:00');
-  const currentMon = new Date(weekMonday(todayStr()) + 'T00:00:00');
+  const currentMonStr = weekMonday(todayStr());
+  const currentMon = new Date(currentMonStr + 'T00:00:00');
+  const currentWk = isoWeekStr(currentMonStr);
 
-  const labels = [], vals = [], weekRefs = [];
+  const labels = [], vals = [], monStrs = [], weekRefs = [];
   for (let d = new Date(firstMon); d <= currentMon; d.setDate(d.getDate() + 7)) {
     const monStr = d.toISOString().split('T')[0];
     const wk = isoWeekStr(monStr);
     labels.push(fmtDate(monStr));
+    monStrs.push(monStr);
     const km = weekMap[wk] ? Math.round(weekMap[wk].total * 10) / 10 : 0;
     vals.push(km);
-    weekRefs.push(km > 0 ? weekMap[wk] : null);
+    weekRefs.push({ km, mon: monStr, isCurrent: wk === currentWk });
   }
 
-  const lastRunIdx = vals.reduce((last, v, i) => v > 0 ? i : last, -1);
-  const ptColors = vals.map((v, i) => i === lastRunIdx ? '#639922' : 'transparent');
-  const ptBorder = vals.map((v) => v > 0 ? '#639922' : 'transparent');
-  const ptRadii  = vals.map((v, i) => i === lastRunIdx ? 5 : v > 0 ? 4 : 0);
+  const currentWeekIdx = vals.length - 1; // always the rightmost bar
+  const lastRunIdx = vals.reduce((last, v, i) => (v > 0 && i !== currentWeekIdx) ? i : last, -1);
+
+  // Points: highlight last completed week and current week separately
+  const ptColors = vals.map((v, i) => {
+    if (i === currentWeekIdx) return v > 0 ? '#378ADD' : 'transparent';
+    if (i === lastRunIdx) return '#639922';
+    return 'transparent';
+  });
+  const ptBorder = vals.map((v, i) => {
+    if (i === currentWeekIdx) return v > 0 ? '#378ADD' : 'transparent';
+    return v > 0 ? '#639922' : 'transparent';
+  });
+  const ptRadii = vals.map((v, i) => {
+    if (i === currentWeekIdx) return v > 0 ? 6 : 0;
+    if (i === lastRunIdx) return 5;
+    return v > 0 ? 4 : 0;
+  });
+
+  // Segment colors: current week point blue, rest green
+  const pointBgColors = ptColors;
 
   const maxKm = Math.max(...vals, 1);
   const yMax  = Math.ceil(maxKm / 5) * 5 + 5;
 
   activeCharts['weeklykm'] = new Chart(document.getElementById('c-weeklykm').getContext('2d'), {
     type: 'line',
-    data: { labels, datasets: [{ label:'Weekly km', data:vals, borderColor:'#639922', backgroundColor:'rgba(99,153,34,0.15)', fill:true, tension:0, pointRadius:ptRadii, pointBackgroundColor:ptColors, pointBorderColor:ptBorder, pointBorderWidth:2, borderWidth:2 }] },
+    data: { labels, datasets: [{ label:'Weekly km', data:vals, borderColor:'#639922', backgroundColor:'rgba(99,153,34,0.15)', fill:true, tension:0, pointRadius:ptRadii, pointBackgroundColor:pointBgColors, pointBorderColor:ptBorder, pointBorderWidth:2, borderWidth:2 }] },
     options: { responsive:true, maintainAspectRatio:false,
-      plugins: { legend:{display:false}, tooltip:{ callbacks:{ label:(ctx) => ctx.parsed.y.toFixed(1) + ' km this week' } } },
+      plugins: { legend:{display:false}, tooltip:{ callbacks:{
+        title:(items) => {
+          const ref = weekRefs[items[0].dataIndex];
+          return 'Week of ' + fmtDate(ref.mon) + (ref.isCurrent ? ' (this week)' : '');
+        },
+        label:(ctx) => {
+          const ref = weekRefs[ctx.dataIndex];
+          const km = ctx.parsed.y.toFixed(1);
+          return ref.isCurrent ? km + ' km so far' : km + ' km';
+        }
+      } } },
       scales: { y:{ beginAtZero:true, max:yMax, grid:{color:'rgba(128,128,128,0.1)'}, ticks:{color:'#888', callback:v=>v+' km'} }, x:{ grid:{display:false}, ticks:{color:'#888', maxRotation:35, autoSkip:true, maxTicksLimit:10} } }
     }
   });
@@ -953,8 +983,8 @@ function renderChatUI() {
     <div class="chat-messages" id="chat-messages"></div>
     <div class="chat-typing-row" id="chat-typing"></div>
     <div class="chat-input-row">
-      <input type="text" id="chat-input" placeholder="Ask your coach anything…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}">
-      <button class="btn btn-primary btn-sm" id="chat-send-btn" onclick="sendChat()">Send</button>
+      <input type="text" id="chat-input" placeholder="Ask your coach anything…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}" style="min-width:0;flex:1">
+      <button class="btn btn-primary btn-sm" id="chat-send-btn" onclick="sendChat()" style="flex-shrink:0">Send</button>
     </div>`;
   renderChatMessages();
 }

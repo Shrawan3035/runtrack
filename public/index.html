@@ -5,257 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RunTrack — AI Coach</title>
 <link rel="stylesheet" href="style.css">
-<style>
-/* ── CHAT INPUT ROW FIX ───────────────────────────────────── */
-.chat-input-row {
-  display: flex !important;
-  gap: 8px;
-  align-items: center;
-}
-.chat-input-row input {
-  flex: 1 1 0 !important;
-  min-width: 0 !important;
-}
-.chat-input-row button {
-  flex-shrink: 0 !important;
-}
-
-/* ── DANGER BUTTON ──────────────────────────────────────────── */
-.btn-danger {
-  background: var(--red, #E24B4A) !important;
-  color: #fff !important;
-  border-color: var(--red, #E24B4A) !important;
-  opacity: 0.85;
-}
-.btn-danger:hover { opacity: 1; }
-
-/* ── FAB — Floating Log Run button ───────────────────────── */
-.fab {
-  position: fixed;
-  bottom: 24px;
-  right: 20px;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: var(--green, #639922);
-  color: #fff;
-  font-size: 26px;
-  line-height: 1;
-  border: none;
-  box-shadow: 0 4px 16px rgba(99,153,34,0.45);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 900;
-  transition: transform .15s, box-shadow .15s;
-}
-.fab:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(99,153,34,0.55); }
-.fab:active { transform: scale(0.96); }
-
-/* ── PERSONAL BESTS ──────────────────────────────────────── */
-.pb-scroll {
-  display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 6px;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-.pb-scroll::-webkit-scrollbar { display: none; }
-.pb-card {
-  flex: 0 0 130px;
-  background: var(--bg2, rgba(128,128,128,0.07));
-  border: 1px solid var(--border, rgba(128,128,128,0.12));
-  border-radius: 12px;
-  padding: 12px 10px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.pb-icon { font-size: 18px; line-height: 1; margin-bottom: 2px; }
-.pb-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; line-height: 1.2; }
-.pb-val { font-size: 15px; font-weight: 700; color: var(--text); margin-top: 2px; }
-.pb-sub { font-size: 10px; color: var(--text3); margin-top: 1px; }
-
-/* ── LIVE PACE PREVIEW ───────────────────────────────────── */
-#pace-preview {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--green, #639922);
-  margin-top: 4px;
-  min-height: 18px;
-  display: block;
-}
-
-/* ── HISTORY INLINE MENU ─────────────────────────────────── */
-.run-menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
-  background: var(--bg, #fff);
-  border: 1px solid var(--border, rgba(128,128,128,0.18));
-  border-radius: 10px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-  z-index: 100;
-  min-width: 110px;
-  overflow: hidden;
-}
-.run-menu button {
-  display: block;
-  width: 100%;
-  background: none;
-  border: none;
-  padding: 10px 14px;
-  text-align: left;
-  font-size: 13px;
-  color: var(--text);
-  cursor: pointer;
-}
-.run-menu button:hover { background: var(--bg2); }
-.run-menu button.danger { color: var(--red, #E24B4A); }
-
-/* ── CALENDAR ────────────────────────────────────────────── */
-.cal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-  gap: 8px;
-}
-.cal-header > div { text-align: center; }
-.cal-month-label {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text);
-  display: block;
-}
-.cal-month-summary {
-  font-size: 11px;
-  color: var(--green, #639922);
-  font-weight: 600;
-  margin-top: 2px;
-}
-.cal-grid-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.cal-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr) 48px;
-  gap: 3px;
-  min-width: 320px;
-}
-.cal-day-hdr {
-  text-align: center;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text3);
-  padding: 4px 0 8px;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-}
-.cal-wk-hdr { font-size: 9px; color: var(--text3); }
-.cal-cell {
-  min-height: 54px;
-  border-radius: 8px;
-  padding: 4px 2px 3px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  cursor: pointer;
-  transition: background .15s;
-}
-.cal-cell:hover { background: var(--bg2); }
-.cal-empty { cursor: default; pointer-events: none; }
-.cal-day-num {
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text2);
-  position: relative;
-  flex-shrink: 0;
-}
-.cal-cell.cal-has-run .cal-day-num {
-  color: #fff;
-  font-weight: 700;
-}
-.cal-cell.cal-today:not(.cal-has-run) .cal-day-num::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--blue, #378ADD);
-}
-.cal-cell.cal-today.cal-has-run .cal-day-num {
-  box-shadow: 0 0 0 2.5px var(--bg, #fff), 0 0 0 4.5px currentColor;
-}
-.cal-dist {
-  font-size: 9px;
-  font-weight: 600;
-  line-height: 1;
-}
-.cal-week-total {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 9px;
-  color: var(--text3);
-  font-weight: 600;
-  border-radius: 6px;
-  background: var(--bg2, rgba(128,128,128,0.06));
-  min-height: 54px;
-  padding: 4px 2px;
-  text-align: center;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  letter-spacing: .02em;
-}
-.cal-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  margin-top: 1rem;
-  padding-top: .75rem;
-  border-top: 1px solid var(--border, rgba(128,128,128,0.15));
-}
-.cal-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: var(--text3);
-  text-transform: capitalize;
-}
-.cal-legend-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.cal-detail { margin-top: .75rem; }
-.cal-detail-card {
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--bg2, rgba(128,128,128,0.07));
-  border: 1px solid var(--border, rgba(128,128,128,0.15));
-}
-.cal-detail-empty {
-  font-size: 13px;
-  color: var(--text3);
-  padding: 8px 4px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-</style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 </head>
 <body>
@@ -285,30 +34,51 @@
   <!-- FLOATING LOG RUN BUTTON -->
   <button class="fab" onclick="showPage('log',null)" title="Log a run">+</button>
 
-  <!-- DASHBOARD -->
+  <!-- ═══════════════════════════ DASHBOARD ═══════════════════════════ -->
   <div id="page-dashboard" class="page active">
+
+    <!-- Stats row -->
     <div class="metric-grid" id="dash-metrics"></div>
-    <div id="dash-ai-card"></div>
+
+    <!-- Two-column grid: AI card left, race predictor right -->
+    <div class="dash-grid">
+      <div id="dash-ai-card"></div>
+      <div id="dash-race-predictor"></div>
+    </div>
+
+    <!-- Personal bests -->
     <div class="card" id="dash-pbs"></div>
+
+    <!-- Recent activity -->
     <div class="card" id="this-week-card"></div>
+
   </div>
 
-  <!-- AI COACH -->
+  <!-- ═══════════════════════════ AI COACH ════════════════════════════ -->
   <div id="page-coach" class="page">
-    <div id="coach-workout-area"></div>
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;flex-wrap:wrap;gap:8px">
-        <div class="sec" style="margin:0">Chat with your coach</div>
-        <div style="display:flex;gap:6px">
-          <button class="btn btn-sm" onclick="clearChat()" title="Clear visual chat — context is saved">Clear chat</button>
-          <button class="btn btn-sm btn-danger" onclick="resetContext()" title="Erase all saved coaching memory">Reset context</button>
-        </div>
+    <div class="coach-split">
+
+      <!-- LEFT: workout card -->
+      <div class="coach-left">
+        <div id="coach-workout-area"></div>
       </div>
-      <div id="coach-chat-area"></div>
+
+      <!-- RIGHT: chat -->
+      <div class="coach-right">
+        <div class="chat-header">
+          <div class="sec" style="margin:0">Chat</div>
+          <div style="display:flex;gap:5px">
+            <button class="btn btn-sm btn-ghost" onclick="clearChat()" title="Clear visual chat">Clear</button>
+            <button class="btn btn-sm btn-danger" onclick="resetContext()" title="Erase all coaching memory">Reset</button>
+          </div>
+        </div>
+        <div id="coach-chat-area"></div>
+      </div>
+
     </div>
   </div>
 
-  <!-- LOG -->
+  <!-- ═══════════════════════════ LOG RUN ═════════════════════════════ -->
   <div id="page-log" class="page">
     <div class="card">
       <div class="sec">Log a run</div>
@@ -329,7 +99,7 @@
         <label>Custom name</label>
         <input type="text" id="log-custom" placeholder="e.g. Fartlek, Race, Hill repeats">
       </div>
-      <div class="row">
+      <div class="row-3">
         <div>
           <label>Distance (km)</label>
           <input type="number" id="log-dist" placeholder="e.g. 5.0" step="0.1" min="0" oninput="updateLivePace()">
@@ -338,16 +108,20 @@
           <label>Duration</label>
           <input type="text" id="log-time" placeholder="e.g. 27:30" oninput="updateLivePace()">
         </div>
+        <div>
+          <label>Elevation gain (m) <span style="color:var(--text3);font-weight:400;font-size:10px">optional</span></label>
+          <input type="number" id="log-elevation" placeholder="e.g. 85" step="1" min="0">
+        </div>
       </div>
       <span id="pace-preview"></span>
       <div style="margin-top:12px">
         <label>Effort — <span id="effort-label" style="color:var(--text);font-weight:600;text-transform:none;letter-spacing:0">5 · moderate</span></label>
         <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
-          <div style="display:flex;gap:4px" id="effort-dots"></div>
+          <div style="display:flex;gap:5px" id="effort-dots"></div>
         </div>
       </div>
       <div style="margin-top:12px">
-        <label>Notes (optional)</label>
+        <label>Notes <span style="color:var(--text3);font-weight:400;font-size:10px">optional</span></label>
         <textarea id="log-notes" rows="2" placeholder="How did it feel? Route, conditions…"></textarea>
       </div>
       <div style="margin-top:1.25rem;display:flex;gap:10px">
@@ -358,7 +132,7 @@
     </div>
   </div>
 
-  <!-- HISTORY -->
+  <!-- ═══════════════════════════ HISTORY ═════════════════════════════ -->
   <div id="page-history" class="page">
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;flex-wrap:wrap;gap:8px">
@@ -378,7 +152,7 @@
     </div>
   </div>
 
-  <!-- CHARTS / PROGRESS -->
+  <!-- ═══════════════════════════ CHARTS ══════════════════════════════ -->
   <div id="page-charts" class="page">
     <div class="tab-group">
       <button class="tab active" onclick="showChart('fitness',this)">Fitness</button>
@@ -386,12 +160,11 @@
       <button class="tab" onclick="showChart('pace',this)">Pace</button>
       <button class="tab" onclick="showChart('distance',this)">Distance</button>
       <button class="tab" onclick="showChart('effort',this)">Effort</button>
+      <button class="tab" onclick="showChart('elevation',this)">Elevation</button>
     </div>
     <div class="chart-filters">
-      <span style="font-size:12px;color:var(--text2)">View:</span>
-      <select id="chart-range" onchange="renderChart(activeChartName)" style="width:auto;font-size:12px;padding:5px 10px">
-        <option value="all">All time</option>
-      </select>
+      <span style="font-size:11px;color:var(--text3)">View:</span>
+      <select id="chart-range" onchange="renderChart(activeChartName)" style="width:auto;font-size:12px;padding:5px 10px"></select>
     </div>
 
     <div id="chart-fitness">
@@ -429,21 +202,28 @@
     <div id="chart-effort" style="display:none">
       <div class="card">
         <div class="sec">Effort per run</div>
-        <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;font-size:11px;color:var(--text2)">
-          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#639922;display:inline-block"></span>Easy</span>
-          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#BA7517;display:inline-block"></span>Tempo</span>
-          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#E24B4A;display:inline-block"></span>Interval</span>
-          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#378ADD;display:inline-block"></span>Long</span>
-          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#7F77DD;display:inline-block"></span>Optional/Custom</span>
+        <div style="display:flex;flex-wrap:wrap;gap:8px 12px;margin-bottom:10px">
+          <span style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3)"><span style="width:8px;height:8px;border-radius:2px;background:#72A832;display:inline-block"></span>Easy</span>
+          <span style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3)"><span style="width:8px;height:8px;border-radius:2px;background:#F59C2A;display:inline-block"></span>Tempo</span>
+          <span style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3)"><span style="width:8px;height:8px;border-radius:2px;background:#E05252;display:inline-block"></span>Interval</span>
+          <span style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3)"><span style="width:8px;height:8px;border-radius:2px;background:#5B9BD5;display:inline-block"></span>Long</span>
         </div>
         <div class="chart-wrap" style="height:260px"><canvas id="c-effort"></canvas></div>
+      </div>
+    </div>
+
+    <div id="chart-elevation" style="display:none">
+      <div class="card">
+        <div class="sec">Elevation gain</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:.75rem">Metres gained per run. Reflects terrain and route difficulty.</div>
+        <div class="chart-wrap" style="height:260px"><canvas id="c-elevation"></canvas></div>
       </div>
     </div>
 
     <div id="charts-empty" class="empty" style="display:none">Log at least one run to see your progress charts.</div>
   </div>
 
-  <!-- CALENDAR -->
+  <!-- ═══════════════════════════ CALENDAR ════════════════════════════ -->
   <div id="page-calendar" class="page">
     <div class="card">
       <div id="cal-container"></div>

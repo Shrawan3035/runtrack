@@ -150,6 +150,14 @@ function App() {
   const [selectedMarathonWorkout, setSelectedMarathonWorkout] = useState(null);
   const [editingActivity, setEditingActivity] = useState(null);
   const [marathonViewMode, setMarathonViewMode] = useState('calendar'); // 'calendar' or 'weekly'
+  const [marathonStartWeek, setMarathonStartWeek] = useState(1);
+  const [isEditingWorkout, setIsEditingWorkout] = useState(false);
+  const [editType, setEditType] = useState('Easy');
+  const [editDistance, setEditDistance] = useState(0);
+  const [editDescription, setEditDescription] = useState('');
+  const [editDuration, setEditDuration] = useState('');
+  const [editPace, setEditPace] = useState('');
+  const [editCoachingTips, setEditCoachingTips] = useState('');
 
   const getCalendarDate = (startDateStr, weekNum, dayName) => {
     if (!startDateStr) return '';
@@ -266,6 +274,33 @@ function App() {
           });
         }
         setCheckedMarathonDays(checkedMap);
+
+        // Dynamically calculate and set current week of training
+        try {
+          if (planRes.startDate) {
+            const start = new Date(planRes.startDate);
+            const today = new Date();
+            start.setHours(0,0,0,0);
+            today.setHours(0,0,0,0);
+            const isFuture = today < start;
+            
+            let currentWk = 1;
+            if (!isFuture) {
+              const diffTime = today - start;
+              const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+              currentWk = Math.max(1, Math.floor(diffDays / 7) + 1);
+            }
+            
+            const total = planRes.plan?.length || 0;
+            const clampedWk = Math.min(total, currentWk);
+            
+            const startWk = clampedWk - (clampedWk - 1) % 4;
+            setMarathonStartWeek(startWk);
+            setSelectedMarathonWeek(clampedWk);
+          }
+        } catch (dateErr) {
+          console.error('Error calculating current week from start date', dateErr);
+        }
       } else {
         setMarathonPlan(null);
       }
@@ -636,6 +671,7 @@ function App() {
       const res = await api.generateMarathonPlan(marathonStart, marathonTarget, marathonGoalDist, runsPerWeek);
       setMarathonPlan(res);
       setSelectedMarathonWeek(1);
+      setMarathonStartWeek(1);
       setCheckedMarathonDays({});
       localStorage.removeItem(`runtrack_marathon_checked_${currentUser?.username}`);
     } catch (err) {
@@ -657,6 +693,80 @@ function App() {
       alert('Failed to reset plan');
     } finally {
       setMarathonLoading(false);
+    }
+  };
+
+  const handleAdaptMarathonPlan = async () => {
+    if (!window.confirm('This will analyze your logged actual run activities and training plan completion to adapt the remaining future weeks of your training program. Proceed?')) return;
+    setMarathonLoading(true);
+    try {
+      const res = await api.adaptMarathonPlan();
+      setMarathonPlan(res);
+      
+      // Calculate and align startWeek
+      if (res.startDate) {
+        const start = new Date(res.startDate);
+        const today = new Date();
+        start.setHours(0,0,0,0);
+        today.setHours(0,0,0,0);
+        const isFuture = today < start;
+        
+        let currentWk = 1;
+        if (!isFuture) {
+          const diffTime = today - start;
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          currentWk = Math.max(1, Math.floor(diffDays / 7) + 1);
+        }
+        const total = res.plan?.length || 0;
+        const clampedWk = Math.min(total, currentWk);
+        const startWk = clampedWk - (clampedWk - 1) % 4;
+        setMarathonStartWeek(startWk);
+        setSelectedMarathonWeek(clampedWk);
+      }
+      alert('Plan successfully adapted to your recent running history and progress!');
+    } catch (err) {
+      alert(err.message || 'Failed to adapt marathon plan');
+    } finally {
+      setMarathonLoading(false);
+    }
+  };
+
+  const handleSaveWorkoutEdit = async () => {
+    setMarathonLoading(true);
+    try {
+      const updatedPlan = await api.editMarathonDay({
+        week: selectedMarathonWorkout.weekNum,
+        day: selectedMarathonWorkout.day,
+        type: editType,
+        distance: editDistance,
+        description: editDescription,
+        targetDuration: editDuration,
+        targetPace: editPace,
+        coachingTips: editCoachingTips
+      });
+      setMarathonPlan(updatedPlan);
+      setSelectedMarathonWorkout(null);
+      setIsEditingWorkout(false);
+      alert('Workout successfully updated!');
+    } catch (err) {
+      alert(err.message || 'Failed to update workout');
+    } finally {
+      setMarathonLoading(false);
+    }
+  };
+
+  const handlePrevWeeks = () => {
+    const nextStart = Math.max(1, marathonStartWeek - 4);
+    setMarathonStartWeek(nextStart);
+    setSelectedMarathonWeek(nextStart);
+  };
+
+  const handleNextWeeks = () => {
+    const total = marathonPlan.plan?.length || 0;
+    const nextStart = marathonStartWeek + 4;
+    if (nextStart <= total) {
+      setMarathonStartWeek(nextStart);
+      setSelectedMarathonWeek(nextStart);
     }
   };
 
@@ -1679,13 +1789,23 @@ function App() {
                       Training timeline: {marathonPlan.startDate} to {marathonPlan.targetDate}
                     </p>
                   </div>
-                  <button className="btn btn-danger" onClick={handleResetMarathonPlan}>
-                    Reset Program
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <button 
+                      className="btn btn-primary" 
+                      onClick={handleAdaptMarathonPlan}
+                      disabled={marathonLoading}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                    >
+                      {marathonLoading ? <div className="spinner"></div> : '🔄 Sync & Adapt Plan'}
+                    </button>
+                    <button className="btn btn-danger" onClick={handleResetMarathonPlan} disabled={marathonLoading}>
+                      Reset Program
+                    </button>
+                  </div>
                 </div>
 
                 {/* View Mode Toggle Bar */}
-                <div className="calendar-view-toggle-bar">
+                <div className="calendar-view-toggle-bar" style={{ marginBottom: '1rem' }}>
                   <button 
                     className={`calendar-toggle-btn ${marathonViewMode === 'calendar' ? 'active' : ''}`}
                     onClick={() => setMarathonViewMode('calendar')}
@@ -1699,6 +1819,42 @@ function App() {
                     🗓️ Weekly View
                   </button>
                 </div>
+
+                {/* 4-Week Block Navigation Bar */}
+                {marathonPlan.plan && marathonPlan.plan.length > 0 && (
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    marginBottom: '1.5rem',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '12px',
+                    padding: '0.75rem 1.25rem'
+                  }}>
+                    <button 
+                      type="button"
+                      className="btn btn-secondary" 
+                      onClick={handlePrevWeeks}
+                      disabled={marathonStartWeek === 1}
+                      style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}
+                    >
+                      ← Previous 4 Weeks
+                    </button>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                      Weeks {marathonStartWeek} – {Math.min(marathonPlan.plan?.length || 0, marathonStartWeek + 3)} of {marathonPlan.plan?.length || 0}
+                    </span>
+                    <button 
+                      type="button"
+                      className="btn btn-secondary" 
+                      onClick={handleNextWeeks}
+                      disabled={marathonStartWeek + 3 >= (marathonPlan.plan?.length || 0)}
+                      style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}
+                    >
+                      Next 4 Weeks →
+                    </button>
+                  </div>
+                )}
 
                 {/* Complete Calendar Grid View */}
                 {marathonViewMode === 'calendar' && (
@@ -1715,8 +1871,10 @@ function App() {
                     </div>
                     
                     <div className="marathon-calendar-grid">
-                      {marathonPlan.plan?.map((wk) => (
-                        <div key={wk.week} className="calendar-grid-row">
+                      {marathonPlan.plan
+                        ?.filter(wk => wk.week >= marathonStartWeek && wk.week < marathonStartWeek + 4)
+                        ?.map((wk) => (
+                          <div key={wk.week} className="calendar-grid-row">
                           {/* Week Label Side Cell */}
                           <div style={{
                             background: 'rgba(255, 255, 255, 0.02)',
@@ -1802,15 +1960,17 @@ function App() {
                     {/* Week Selector Tabs */}
                     <h4 style={{ fontSize: '1rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Select Week</h4>
                     <div className="week-tabs-container">
-                      {marathonPlan.plan?.map((wk) => (
-                        <button 
-                          key={wk.week} 
-                          className={`week-tab-btn ${selectedMarathonWeek === wk.week ? 'active' : ''}`}
-                          onClick={() => setSelectedMarathonWeek(wk.week)}
-                        >
-                          W{wk.week}
-                        </button>
-                      ))}
+                      {marathonPlan.plan
+                        ?.filter(wk => wk.week >= marathonStartWeek && wk.week < marathonStartWeek + 4)
+                        ?.map((wk) => (
+                          <button 
+                            key={wk.week} 
+                            className={`week-tab-btn ${selectedMarathonWeek === wk.week ? 'active' : ''}`}
+                            onClick={() => setSelectedMarathonWeek(wk.week)}
+                          >
+                            W{wk.week}
+                          </button>
+                        ))}
                     </div>
 
                     {/* Selected Week Data */}
@@ -1920,7 +2080,7 @@ function App() {
 
                 {/* Details Popup Modal */}
                 {selectedMarathonWorkout && (
-                  <div className="modal-overlay" onClick={() => setSelectedMarathonWorkout(null)}>
+                  <div className="modal-overlay" onClick={() => { setSelectedMarathonWorkout(null); setIsEditingWorkout(false); }}>
                     <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
                         <div>
@@ -1929,63 +2089,170 @@ function App() {
                             {marathonPlan.startDate && ` (${getCalendarDate(marathonPlan.startDate, selectedMarathonWorkout.weekNum, selectedMarathonWorkout.day)})`}
                           </span>
                           <h3 style={{ marginTop: '0.25rem', fontSize: '1.5rem', fontWeight: 700 }}>
-                            {selectedMarathonWorkout.workout.distance > 0 ? `${selectedMarathonWorkout.workout.distance} km Run` : 'Rest & Recovery'}
+                            {isEditingWorkout ? 'Edit Workout' : (selectedMarathonWorkout.workout.distance > 0 ? `${selectedMarathonWorkout.workout.distance} km Run` : 'Rest & Recovery')}
                           </h3>
                         </div>
-                        <button className="btn" style={{ padding: '0.25rem 0.5rem', background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: '1.5rem', cursor: 'pointer' }} onClick={() => setSelectedMarathonWorkout(null)}>×</button>
-                      </div>
-                      
-                      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-                        <span className={`activity-badge badge-${(selectedMarathonWorkout.workout.type || 'Rest').toLowerCase().includes('interval') ? 'interval' : (selectedMarathonWorkout.workout.type || 'Rest').toLowerCase().includes('tempo') ? 'tempo' : (selectedMarathonWorkout.workout.type || 'Rest').toLowerCase().includes('long') ? 'long' : (selectedMarathonWorkout.workout.type || 'Rest').toLowerCase().includes('easy') ? 'easy' : 'optional'}`}>
-                          {selectedMarathonWorkout.workout.type || 'Rest'}
-                        </span>
-                        
-                        {selectedMarathonWorkout.workout.targetPace && selectedMarathonWorkout.workout.targetPace !== '—' && (
-                          <span className="activity-badge badge-custom">
-                            Pace: {selectedMarathonWorkout.workout.targetPace}
-                          </span>
-                        )}
-                        
-                        {selectedMarathonWorkout.workout.targetDuration && selectedMarathonWorkout.workout.targetDuration !== '—' && (
-                          <span className="activity-badge badge-easy" style={{ background: 'rgba(0, 242, 254, 0.15)', color: 'var(--primary)' }}>
-                            Duration: {selectedMarathonWorkout.workout.targetDuration}
-                          </span>
-                        )}
-                      </div>
-                      
-                      <div style={{ marginBottom: '1.75rem' }}>
-                        <h4 style={{ fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '0.5rem', fontWeight: 600 }}>Description</h4>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
-                          {selectedMarathonWorkout.workout.description}
-                        </p>
-                      </div>
-                      
-                      {selectedMarathonWorkout.workout.coachingTips && (
-                        <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-light)', padding: '1.25rem', borderRadius: '12px', marginBottom: '2rem' }}>
-                          <h4 style={{ fontSize: '1rem', color: 'var(--primary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
-                            💡 Coaching Tips
-                          </h4>
-                          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.6', whiteSpace: 'pre-line' }}>
-                            {selectedMarathonWorkout.workout.coachingTips}
-                          </p>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          {!isEditingWorkout && (
+                            <button 
+                              type="button"
+                              className="btn btn-secondary" 
+                              style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                              onClick={() => {
+                                setEditType(selectedMarathonWorkout.workout.type || 'Easy');
+                                setEditDistance(selectedMarathonWorkout.workout.distance || 0);
+                                setEditDescription(selectedMarathonWorkout.workout.description || '');
+                                setEditDuration(selectedMarathonWorkout.workout.targetDuration || '');
+                                setEditPace(selectedMarathonWorkout.workout.targetPace || '');
+                                setEditCoachingTips(selectedMarathonWorkout.workout.coachingTips || '');
+                                setIsEditingWorkout(true);
+                              }}
+                            >
+                              ✏️ Edit
+                            </button>
+                          )}
+                          <button className="btn" style={{ padding: '0.25rem 0.5rem', background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: '1.5rem', cursor: 'pointer' }} onClick={() => { setSelectedMarathonWorkout(null); setIsEditingWorkout(false); }}>×</button>
                         </div>
-                      )}
-                      
-                      <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                        <button 
-                          className={`btn ${checkedMarathonDays[`w${selectedMarathonWorkout.weekNum}_d${selectedMarathonWorkout.day}`] ? 'btn-danger' : 'btn-primary'}`}
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                          onClick={() => {
-                            toggleMarathonDay(selectedMarathonWorkout.weekNum, selectedMarathonWorkout.day, selectedMarathonWorkout.workout);
-                            setSelectedMarathonWorkout(null);
-                          }}
-                        >
-                          {checkedMarathonDays[`w${selectedMarathonWorkout.weekNum}_d${selectedMarathonWorkout.day}`] ? 'Mark as Incomplete' : 'Mark as Completed'}
-                        </button>
-                        <button className="btn btn-secondary" onClick={() => setSelectedMarathonWorkout(null)}>
-                          Close
-                        </button>
                       </div>
+                      
+                      {isEditingWorkout ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <div className="form-group">
+                              <label>Workout Type</label>
+                              <select className="form-input" value={editType} onChange={e => setEditType(e.target.value)}>
+                                <option value="Easy">Easy Run</option>
+                                <option value="Tempo">Tempo Run</option>
+                                <option value="Intervals">Intervals</option>
+                                <option value="Long Run">Long Run</option>
+                                <option value="Rest">Rest & Recovery</option>
+                              </select>
+                            </div>
+                            <div className="form-group">
+                              <label>Target Distance (km)</label>
+                              <input 
+                                type="number" 
+                                step="0.1" 
+                                className="form-input" 
+                                value={editDistance} 
+                                onChange={e => {
+                                  const val = parseFloat(e.target.value);
+                                  setEditDistance(isNaN(val) ? 0 : val);
+                                  if (val === 0) setEditType('Rest');
+                                }} 
+                              />
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <div className="form-group">
+                              <label>Target Duration (e.g. 45:00)</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                value={editDuration} 
+                                onChange={e => setEditDuration(e.target.value)} 
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label>Target Pace (e.g. 6:30 /km)</label>
+                              <input 
+                                type="text" 
+                                className="form-input" 
+                                value={editPace} 
+                                onChange={e => setEditPace(e.target.value)} 
+                              />
+                            </div>
+                          </div>
+
+                          <div className="form-group">
+                            <label>Description</label>
+                            <textarea 
+                              className="form-input" 
+                              rows={3} 
+                              value={editDescription} 
+                              onChange={e => setEditDescription(e.target.value)} 
+                            />
+                          </div>
+
+                          <div className="form-group">
+                            <label>Coaching Tips</label>
+                            <textarea 
+                              className="form-input" 
+                              rows={3} 
+                              value={editCoachingTips} 
+                              onChange={e => setEditCoachingTips(e.target.value)} 
+                            />
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                            <button className="btn btn-secondary" onClick={() => setIsEditingWorkout(false)}>
+                              Cancel
+                            </button>
+                            <button 
+                              className="btn btn-primary" 
+                              onClick={handleSaveWorkoutEdit}
+                              disabled={marathonLoading}
+                            >
+                              {marathonLoading ? <div className="spinner"></div> : 'Save Changes'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                            <span className={`activity-badge badge-${(selectedMarathonWorkout.workout.type || 'Rest').toLowerCase().includes('interval') ? 'interval' : (selectedMarathonWorkout.workout.type || 'Rest').toLowerCase().includes('tempo') ? 'tempo' : (selectedMarathonWorkout.workout.type || 'Rest').toLowerCase().includes('long') ? 'long' : (selectedMarathonWorkout.workout.type || 'Rest').toLowerCase().includes('easy') ? 'easy' : 'optional'}`}>
+                              {selectedMarathonWorkout.workout.type || 'Rest'}
+                            </span>
+                            
+                            {selectedMarathonWorkout.workout.targetPace && selectedMarathonWorkout.workout.targetPace !== '—' && (
+                              <span className="activity-badge badge-custom">
+                                Pace: {selectedMarathonWorkout.workout.targetPace}
+                              </span>
+                            )}
+                            
+                            {selectedMarathonWorkout.workout.targetDuration && selectedMarathonWorkout.workout.targetDuration !== '—' && (
+                              <span className="activity-badge badge-easy" style={{ background: 'rgba(0, 242, 254, 0.15)', color: 'var(--primary)' }}>
+                                Duration: {selectedMarathonWorkout.workout.targetDuration}
+                              </span>
+                            )}
+                          </div>
+                          
+                          <div style={{ marginBottom: '1.75rem' }}>
+                            <h4 style={{ fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '0.5rem', fontWeight: 600 }}>Description</h4>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
+                              {selectedMarathonWorkout.workout.description}
+                            </p>
+                          </div>
+                          
+                          {selectedMarathonWorkout.workout.coachingTips && (
+                            <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-light)', padding: '1.25rem', borderRadius: '12px', marginBottom: '2rem' }}>
+                              <h4 style={{ fontSize: '1rem', color: 'var(--primary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
+                                💡 Coaching Tips
+                              </h4>
+                              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.6', whiteSpace: 'pre-line' }}>
+                                {selectedMarathonWorkout.workout.coachingTips}
+                              </p>
+                            </div>
+                          )}
+                          
+                          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                            <button 
+                              className={`btn ${checkedMarathonDays[`w${selectedMarathonWorkout.weekNum}_d${selectedMarathonWorkout.day}`] ? 'btn-danger' : 'btn-primary'}`}
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                              onClick={() => {
+                                toggleMarathonDay(selectedMarathonWorkout.weekNum, selectedMarathonWorkout.day, selectedMarathonWorkout.workout);
+                                setSelectedMarathonWorkout(null);
+                              }}
+                            >
+                              {checkedMarathonDays[`w${selectedMarathonWorkout.weekNum}_d${selectedMarathonWorkout.day}`] ? 'Mark as Incomplete' : 'Mark as Completed'}
+                            </button>
+                            <button className="btn btn-secondary" onClick={() => setSelectedMarathonWorkout(null)}>
+                              Close
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}

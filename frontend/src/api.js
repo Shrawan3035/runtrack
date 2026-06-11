@@ -188,6 +188,31 @@ export const api = {
     return res.json();
   },
 
+  adaptMarathonPlan: async () => {
+    const res = await fetch(`${API_BASE_URL}/ai/marathon/adapt`, {
+      method: 'POST',
+      headers: getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || 'Failed to adapt marathon plan');
+    }
+    return res.json();
+  },
+
+  editMarathonDay: async (workoutDetails) => {
+    const res = await fetch(`${API_BASE_URL}/ai/marathon/edit-day`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(workoutDetails),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || 'Failed to edit workout day');
+    }
+    return res.json();
+  },
+
   deleteAccount: async () => {
     const res = await fetch(`${API_BASE_URL}/auth/profile`, {
       method: 'DELETE',

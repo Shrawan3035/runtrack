@@ -269,6 +269,11 @@ public class AIController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Marathon planner supports a maximum training length of 24 weeks");
         }
 
+        List<Activity> recentActivities = activityRepository.findByUserIdOrderByDateDesc(userId);
+        if (recentActivities.size() > 10) {
+            recentActivities = new ArrayList<>(recentActivities.subList(0, 10));
+        }
+
         StringBuilder prompt = new StringBuilder();
         prompt.append("Create a detailed, day-by-day training program for: ").append(user.getName()).append("\n");
         prompt.append("- Level: ").append(user.getExperienceLevel()).append("\n");
@@ -278,6 +283,16 @@ public class AIController {
         prompt.append("- Target Race Date: ").append(targetDateStr).append("\n");
         prompt.append("- Running days per week: ").append(runsPerWeek).append(" days\n");
         prompt.append("- Rest days per week: ").append(7 - runsPerWeek).append(" days\n\n");
+
+        if (!recentActivities.isEmpty()) {
+            prompt.append("Recent actual runs completed by the runner (use this to calibrate starting mileage, pacing, and difficulty):\n");
+            for (Activity a : recentActivities) {
+                prompt.append("- Date: ").append(a.getDate()).append(", Distance: ").append(a.getDistance()).append(" km, duration: ").append(a.getDuration()).append(", pace: ").append(a.getPace()).append(" min/km, type: ").append(a.getType()).append(", effort: ").append(a.getEffort()).append("/10\n");
+            }
+            prompt.append("\n");
+            prompt.append("CRITICAL: Customise the training plan's target paces, weekly distances, and workouts to align with the runner's recent completed activities. Do not make the schedule excessively hard or assign paces they cannot currently maintain.\n\n");
+        }
+
         prompt.append("The schedule array for each week MUST contain exactly 7 objects (one for each day from Monday to Sunday in order). ");
         prompt.append("Exactly ").append(runsPerWeek).append(" days should have run workouts (distance > 0), and the remaining ").append(7 - runsPerWeek).append(" days should be marked as Rest days (type: 'Rest', distance: 0.0, description: 'Rest day').\n\n");
         prompt.append("Generate the training plan in JSON format. You MUST return a JSON object containing a single key 'plan' which holds the array of weeks. Do not wrap in markdown blocks. The structure must be:\n");
@@ -398,6 +413,206 @@ public class AIController {
         Long userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         marathonPlanRepository.deleteByUserId(userId);
         return ResponseEntity.ok(Map.of("message", "Marathon plan reset successfully"));
+    }
+
+    private JsonNode findWeekNode(JsonNode parsedArray, int weekNum) {
+        if (parsedArray.isArray()) {
+            for (JsonNode node : parsedArray) {
+                if (node.has("week") && node.get("week").asInt() == weekNum) {
+                    return node;
+                }
+            }
+        }
+        return null;
+    }
+
+    @PostMapping("/marathon/adapt")
+    @Transactional
+    public ResponseEntity<?> adaptMarathonPlan() {
+        Long userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Optional<User> userOpt = userRepository.findById(userId);
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
+        }
+        User user = userOpt.get();
+
+        List<MarathonPlan> plans = marathonPlanRepository.findByUserId(userId);
+        if (plans.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No active marathon plan found");
+        }
+        MarathonPlan plan = plans.get(0);
+
+        List<Activity> recentActivities = activityRepository.findByUserIdOrderByDateDesc(userId);
+        if (recentActivities.size() > 10) {
+            recentActivities = new ArrayList<>(recentActivities.subList(0, 10));
+        }
+
+        // Calculate current training week
+        long daysBetween = ChronoUnit.DAYS.between(plan.getStartDate(), LocalDate.now());
+        int currentWeek = (int) (daysBetween / 7) + 1;
+        
+        try {
+            JsonNode originalPlanJson = objectMapper.readTree(plan.getPlanJson());
+            int totalWeeks = originalPlanJson.size();
+            if (currentWeek < 1) currentWeek = 1;
+            if (currentWeek > totalWeeks) currentWeek = totalWeeks;
+
+            StringBuilder prompt = new StringBuilder();
+            prompt.append("You are an expert running coach. Adapt the user's running plan dynamically based on their actual activities and completed runs.\n\n");
+            prompt.append("Runner Profile:\n");
+            prompt.append("- Name: ").append(user.getName()).append("\n");
+            prompt.append("- Goal: ").append(user.getFitnessGoal()).append("\n");
+            prompt.append("- Experience Level: ").append(user.getExperienceLevel()).append("\n");
+            prompt.append("- Goal Distance: ").append(plan.getTargetDistance()).append("\n");
+            prompt.append("- Start Date: ").append(plan.getStartDate()).append("\n");
+            prompt.append("- Race Date: ").append(plan.getTargetDate()).append("\n\n");
+            
+            prompt.append("Current Training Week: ").append(currentWeek).append(" out of ").append(totalWeeks).append("\n");
+            prompt.append("Completed Runs checklist keys: ").append(plan.getCompletedRuns() != null ? plan.getCompletedRuns() : "").append("\n\n");
+            
+            prompt.append("Here is the current training plan JSON:\n");
+            prompt.append(plan.getPlanJson()).append("\n\n");
+
+            if (!recentActivities.isEmpty()) {
+                prompt.append("Here are the actual running activities logged by the user in the app recently:\n");
+                for (Activity a : recentActivities) {
+                    prompt.append("- ").append(a.getDate()).append(": ").append(a.getDistance()).append(" km in ").append(a.getDuration()).append(" (pace: ").append(a.getPace()).append(" min/km, type: ").append(a.getType()).append(")\n");
+                }
+                prompt.append("\n");
+            }
+
+            prompt.append("INSTRUCTIONS:\n");
+            prompt.append("1. Keep weeks 1 to ").append(currentWeek - 1).append(" exactly as they were in the original plan JSON. Do not modify past weeks.\n");
+            prompt.append("2. Adapt Week ").append(currentWeek).append(" and all subsequent weeks to better suit the runner's recent fitness level:\n");
+            prompt.append("   - If the user is struggling (missing workouts, running significantly slower), reduce the distance/intensity of the upcoming weeks.\n");
+            prompt.append("   - If the user is performing well and finding it easy, keep or slightly increase future workout difficulty/volume appropriately.\n");
+            prompt.append("   - Maintain the overall safety and structure of the plan leading to the target race distance.\n");
+            prompt.append("3. Return the modified training plan in the exact same JSON format with a single key 'plan' holding the array of weeks (from Week 1 to the end week). Do not wrap in markdown syntax.\n");
+
+            String replyText = callGeminiAPISinglePrompt(prompt.toString());
+            if (replyText == null) {
+                return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body("Could not contact AI service to adapt marathon plan");
+            }
+
+            String clean = extractJson(replyText);
+            JsonNode rootNode = objectMapper.readTree(clean);
+            JsonNode parsedArray = rootNode.has("plan") ? rootNode.get("plan") : rootNode;
+
+            if (parsedArray.isArray() && parsedArray.size() > 0) {
+                ArrayNode adaptedArray = objectMapper.createArrayNode();
+                for (int w = 1; w <= totalWeeks; w++) {
+                    if (w < currentWeek) {
+                        JsonNode origWk = findWeekNode(originalPlanJson, w);
+                        if (origWk != null) adaptedArray.add(origWk);
+                    } else {
+                        JsonNode adaptedWeek = findWeekNode(parsedArray, w);
+                        if (adaptedWeek != null) {
+                            adaptedArray.add(adaptedWeek);
+                        } else {
+                            JsonNode origWk = findWeekNode(originalPlanJson, w);
+                            if (origWk != null) adaptedArray.add(origWk);
+                        }
+                    }
+                }
+
+                plan.setPlanJson(adaptedArray.toString());
+                marathonPlanRepository.save(plan);
+
+                return ResponseEntity.ok(Map.of(
+                        "hasPlan", true,
+                        "startDate", plan.getStartDate(),
+                        "targetDate", plan.getTargetDate(),
+                        "targetDistance", plan.getTargetDistance(),
+                        "completedRuns", plan.getCompletedRuns() != null ? plan.getCompletedRuns() : "",
+                        "plan", adaptedArray
+                ));
+            } else {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("AI returned empty or invalid plan format");
+            }
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error adapting plan: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/marathon/edit-day")
+    @Transactional
+    public ResponseEntity<?> editMarathonDay(@RequestBody Map<String, Object> request) {
+        Long userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        
+        Object weekObj = request.get("week");
+        int week = 1;
+        if (weekObj instanceof Number) {
+            week = ((Number) weekObj).intValue();
+        } else if (weekObj instanceof String) {
+            week = Integer.parseInt((String) weekObj);
+        }
+
+        String day = (String) request.get("day");
+        String type = (String) request.get("type");
+        
+        Object distanceObj = request.get("distance");
+        double distance = 0.0;
+        if (distanceObj instanceof Number) {
+            distance = ((Number) distanceObj).doubleValue();
+        } else if (distanceObj instanceof String) {
+            distance = Double.parseDouble((String) distanceObj);
+        }
+
+        String description = (String) request.get("description");
+        String targetDuration = (String) request.get("targetDuration");
+        String targetPace = (String) request.get("targetPace");
+        String coachingTips = (String) request.get("coachingTips");
+
+        List<MarathonPlan> plans = marathonPlanRepository.findByUserId(userId);
+        if (plans.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No active marathon plan found");
+        }
+        MarathonPlan plan = plans.get(0);
+
+        try {
+            JsonNode rootNode = objectMapper.readTree(plan.getPlanJson());
+            if (rootNode.isArray()) {
+                ArrayNode weeksArray = (ArrayNode) rootNode;
+                for (JsonNode wkNode : weeksArray) {
+                    ObjectNode wkObj = (ObjectNode) wkNode;
+                    if (wkObj.get("week").asInt() == week) {
+                        ArrayNode scheduleArray = (ArrayNode) wkObj.get("schedule");
+                        double weeklyDistanceSum = 0;
+                        for (JsonNode dayNode : scheduleArray) {
+                            ObjectNode dayObj = (ObjectNode) dayNode;
+                            if (dayObj.get("day").asText().equalsIgnoreCase(day)) {
+                                dayObj.put("type", type);
+                                dayObj.put("distance", distance);
+                                dayObj.put("description", description);
+                                dayObj.put("targetDuration", targetDuration);
+                                dayObj.put("targetPace", targetPace);
+                                dayObj.put("coachingTips", coachingTips);
+                            }
+                            weeklyDistanceSum += dayObj.get("distance").asDouble();
+                        }
+                        wkObj.put("weeklyDistance", Math.round(weeklyDistanceSum * 10.0) / 10.0);
+                        break;
+                    }
+                }
+                
+                plan.setPlanJson(weeksArray.toString());
+                marathonPlanRepository.save(plan);
+
+                return ResponseEntity.ok(Map.of(
+                        "hasPlan", true,
+                        "startDate", plan.getStartDate(),
+                        "targetDate", plan.getTargetDate(),
+                        "targetDistance", plan.getTargetDistance(),
+                        "completedRuns", plan.getCompletedRuns() != null ? plan.getCompletedRuns() : "",
+                        "plan", weeksArray
+                ));
+            } else {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Invalid plan format in database");
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error editing workout: " + e.getMessage());
+        }
     }
 
     private String getActiveGeminiKey() {

@@ -47,6 +47,28 @@ ChartJS.register(
   Filler
 );
 
+const BrandLogo = ({ size = '24px', fallbackEmoji = '⚡' }) => {
+  const [useFallback, setUseFallback] = useState(false);
+
+  if (useFallback) {
+    return <span style={{ fontSize: `calc(${size} * 0.75)` }}>{fallbackEmoji}</span>;
+  }
+
+  return (
+    <img
+      src="/logo.png"
+      alt="Logo"
+      onError={() => setUseFallback(true)}
+      style={{
+        width: size,
+        height: size,
+        objectFit: 'contain',
+        display: 'block'
+      }}
+    />
+  );
+};
+
 function App() {
   // Navigation & User State
   const [currentUser, setCurrentUser] = useState(null);
@@ -856,7 +878,9 @@ function App() {
         <div className="auth-card animate-fade-in">
           <div className="auth-header">
             <div style={{ display: 'inline-flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-              <div className="brand-icon" style={{ width: '50px', height: '50px', fontSize: '1.5rem' }}>🏃</div>
+              <div className="brand-icon" style={{ width: '50px', height: '50px' }}>
+                <BrandLogo size="30px" fallbackEmoji="🏃" />
+              </div>
             </div>
             <h2>Welcome to RunTrack</h2>
             <p>Your AI-Powered Personal Running Coach</p>
@@ -906,7 +930,9 @@ function App() {
         <div className="auth-card animate-fade-in">
           <div className="auth-header">
             <div style={{ display: 'inline-flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-              <div className="brand-icon" style={{ width: '50px', height: '50px', fontSize: '1.5rem' }}>🏃</div>
+              <div className="brand-icon" style={{ width: '50px', height: '50px' }}>
+                <BrandLogo size="30px" fallbackEmoji="🏃" />
+              </div>
             </div>
             <h2>Create Account</h2>
             <p>Start tracking and training today</p>
@@ -1062,7 +1088,9 @@ function App() {
       {/* Sidebar Navigation */}
       <nav className="sidebar">
         <div className="brand">
-          <div className="brand-icon">⚡</div>
+          <div className="brand-icon">
+            <BrandLogo size="22px" fallbackEmoji="⚡" />
+          </div>
           <span className="brand-name">RunTrack</span>
         </div>
         <ul className="nav-menu">

@@ -26,8 +26,11 @@ import java.util.*;
 @RequestMapping("/api/ai")
 public class AIController {
 
-    @Value("${gemini.api.key}")
+    @Value("${gemini.api.key:}")
     private String geminiApiKey;
+
+    @Value("${groq.api.key:}")
+    private String groqApiKey;
 
     @Autowired
     private UserRepository userRepository;
@@ -251,8 +254,15 @@ public class AIController {
 
     // Call Gemini API with conversational context
     private String callGeminiAPI(String systemInstruction, List<Map<String, Object>> frontendMessages) {
-        if (geminiApiKey == null || geminiApiKey.isEmpty()) {
-            return "⚠️ Gemini API key is not configured in backend/src/main/resources/application.properties or environment variable GEMINI_API_KEY.";
+        boolean useGemini = geminiApiKey != null && geminiApiKey.startsWith("AIzaSy");
+        boolean useGroq = groqApiKey != null && groqApiKey.startsWith("gsk_");
+
+        if (!useGemini && useGroq) {
+            return callGroqAPI(systemInstruction, frontendMessages);
+        }
+
+        if (geminiApiKey == null || geminiApiKey.isEmpty() || !useGemini) {
+            return "⚠️ Gemini API key (starting with AIzaSy) is not configured correctly, and no Groq fallback was found.";
         }
 
         String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiApiKey;
@@ -262,8 +272,6 @@ public class AIController {
             ArrayNode contentsArray = objectMapper.createArrayNode();
 
             // Inject the system instruction as the first turn or in user prompt
-            // Gemini 1.5 flash accepts systemInstruction in a separate property or we can combine it as the initial instruction
-            // Combining it as the first system injection in the prompt is highly compatible
             ObjectNode systemTurn = objectMapper.createObjectNode();
             systemTurn.put("role", "user");
             ArrayNode systemParts = systemTurn.putArray("parts");
@@ -286,7 +294,6 @@ public class AIController {
                 if (text == null || text.isEmpty()) continue;
 
                 ObjectNode turn = objectMapper.createObjectNode();
-                // Gemini expects 'user' or 'model' roles
                 turn.put("role", "user".equalsIgnoreCase(role) ? "user" : "model");
                 ArrayNode parts = turn.putArray("parts");
                 ObjectNode partText = parts.addObject();
@@ -314,7 +321,14 @@ public class AIController {
 
     // Call Gemini API with a single text prompt (used for workout / marathon JSON generation)
     private String callGeminiAPISinglePrompt(String prompt) {
-        if (geminiApiKey == null || geminiApiKey.isEmpty()) {
+        boolean useGemini = geminiApiKey != null && geminiApiKey.startsWith("AIzaSy");
+        boolean useGroq = groqApiKey != null && groqApiKey.startsWith("gsk_");
+
+        if (!useGemini && useGroq) {
+            return callGroqAPISinglePrompt(prompt);
+        }
+
+        if (geminiApiKey == null || geminiApiKey.isEmpty() || !useGemini) {
             return null;
         }
 
@@ -337,6 +351,77 @@ public class AIController {
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 JsonNode responseJson = objectMapper.readTree(response.getBody());
                 return responseJson.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    // Call Groq API with conversational context
+    private String callGroqAPI(String systemInstruction, List<Map<String, Object>> frontendMessages) {
+        String url = "https://api.groq.com/openai/v1/chat/completions";
+        try {
+            ArrayNode messagesArray = objectMapper.createArrayNode();
+            
+            // Add system instruction
+            ObjectNode systemMsg = messagesArray.addObject();
+            systemMsg.put("role", "system");
+            systemMsg.put("content", systemInstruction);
+            
+            // Add other messages
+            for (Map<String, Object> msg : frontendMessages) {
+                String role = (String) msg.get("role");
+                String text = (String) msg.get("text");
+                if (text == null || text.isEmpty()) continue;
+                
+                ObjectNode turn = messagesArray.addObject();
+                turn.put("role", "user".equalsIgnoreCase(role) ? "user" : "assistant");
+                turn.put("content", text);
+            }
+            
+            ObjectNode root = objectMapper.createObjectNode();
+            root.put("model", "llama-3.1-8b-instant");
+            root.set("messages", messagesArray);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + groqApiKey);
+            HttpEntity<String> entity = new HttpEntity<>(root.toString(), headers);
+            
+            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                JsonNode responseJson = objectMapper.readTree(response.getBody());
+                return responseJson.path("choices").get(0).path("message").path("content").asText();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    // Call Groq API with a single text prompt
+    private String callGroqAPISinglePrompt(String prompt) {
+        String url = "https://api.groq.com/openai/v1/chat/completions";
+        try {
+            ArrayNode messagesArray = objectMapper.createArrayNode();
+            ObjectNode turn = messagesArray.addObject();
+            turn.put("role", "user");
+            turn.put("content", prompt);
+            
+            ObjectNode root = objectMapper.createObjectNode();
+            root.put("model", "llama-3.1-8b-instant");
+            root.set("messages", messagesArray);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + groqApiKey);
+            HttpEntity<String> entity = new HttpEntity<>(root.toString(), headers);
+            
+            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                JsonNode responseJson = objectMapper.readTree(response.getBody());
+                return responseJson.path("choices").get(0).path("message").path("content").asText();
             }
         } catch (Exception e) {
             e.printStackTrace();

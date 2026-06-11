@@ -94,6 +94,16 @@ export const api = {
     return res.text();
   },
 
+  updateActivity: async (id, activityData) => {
+    const res = await fetch(`${API_BASE_URL}/activities/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(activityData),
+    });
+    if (!res.ok) throw new Error('Failed to update activity');
+    return res.json();
+  },
+
   getStats: async () => {
     const res = await fetch(`${API_BASE_URL}/activities/stats`, {
       headers: getHeaders(),

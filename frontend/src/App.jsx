@@ -101,6 +101,7 @@ function App() {
   const [selectedMarathonWeek, setSelectedMarathonWeek] = useState(1);
   const [runsPerWeek, setRunsPerWeek] = useState(4);
   const [selectedMarathonWorkout, setSelectedMarathonWorkout] = useState(null);
+  const [editingActivity, setEditingActivity] = useState(null);
 
   // Manual Log Run Form
   const [logDate, setLogDate] = useState(new Date().toISOString().substring(0, 10));
@@ -255,6 +256,19 @@ function App() {
   };
 
   // Activity Log Form Submission
+  const handleStartEditActivity = (activity) => {
+    setEditingActivity(activity);
+    setLogDate(activity.date);
+    setLogType(activity.type);
+    setLogCustomName(activity.customName || '');
+    setLogDistance(activity.distance.toString());
+    setLogDuration(activity.duration);
+    setLogElevation(activity.elevation ? activity.elevation.toString() : '');
+    setLogEffort(activity.effort || 5);
+    setLogNotes(activity.notes || '');
+    setActiveTab('log');
+  };
+
   const handleLogActivity = async (e) => {
     e.preventDefault();
     setErrorMsg('');
@@ -266,7 +280,7 @@ function App() {
 
     setLoading(true);
     try {
-      await api.logActivity({
+      const payload = {
         date: logDate,
         type: logType,
         customName: logType === 'custom' ? logCustomName : '',
@@ -276,18 +290,29 @@ function App() {
         effort: parseInt(logEffort),
         notes: logNotes,
         gpsRoute: null
-      });
-      setSuccessMsg('Workout saved successfully!');
+      };
+
+      if (editingActivity) {
+        await api.updateActivity(editingActivity.id, payload);
+        setSuccessMsg('Workout updated successfully!');
+        setEditingActivity(null);
+      } else {
+        await api.logActivity(payload);
+        setSuccessMsg('Workout saved successfully!');
+      }
+
       // Reset form
       setLogDistance('');
       setLogDuration('');
       setLogElevation('');
       setLogNotes('');
+      setLogCustomName('');
+      
       // Refresh Stats & History
       await fetchAppData();
-      setActiveTab('dashboard');
+      setActiveTab('history');
     } catch (err) {
-      setErrorMsg('Failed to save activity');
+      setErrorMsg(err.message || 'Failed to save activity');
     } finally {
       setLoading(false);
     }
@@ -1101,7 +1126,7 @@ function App() {
         {/* TAB 3: LOG RUN */}
         {activeTab === 'log' && (
           <div className="animate-fade-in" style={{ maxWidth: '680px', margin: '0 auto' }}>
-            <h2 className="page-title" style={{ marginBottom: '1.5rem' }}>Log an Activity</h2>
+            <h2 className="page-title" style={{ marginBottom: '1.5rem' }}>{editingActivity ? 'Edit Logged Run' : 'Log an Activity'}</h2>
             <div className="card">
               <form onSubmit={handleLogActivity} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
@@ -1154,9 +1179,29 @@ function App() {
                   <textarea rows="3" className="form-input" placeholder="Weather, route description, or how you felt physically..." value={logNotes} onChange={e => setLogNotes(e.target.value)}></textarea>
                 </div>
 
-                <button type="submit" className="btn btn-primary" style={{ width: 'fit-content' }}>
-                  Save Run Activity
-                </button>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <button type="submit" className="btn btn-primary" style={{ width: 'fit-content' }}>
+                    {editingActivity ? 'Save Changes' : 'Save Run Activity'}
+                  </button>
+                  {editingActivity && (
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      onClick={() => {
+                        setEditingActivity(null);
+                        setLogDistance('');
+                        setLogDuration('');
+                        setLogElevation('');
+                        setLogEffort(5);
+                        setLogNotes('');
+                        setLogCustomName('');
+                        setActiveTab('history');
+                      }}
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
+                </div>
               </form>
             </div>
           </div>
@@ -1499,6 +1544,9 @@ function App() {
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Elevation</div>
                         <div style={{ fontWeight: 600, fontFamily: 'var(--font-display)', fontSize: '1rem' }}>{a.elevation || 0} m</div>
                       </div>
+                      <button className="btn btn-secondary" style={{ padding: '0.5rem', marginRight: '0.5rem' }} onClick={() => handleStartEditActivity(a)}>
+                        Edit
+                      </button>
                       <button className="btn btn-danger" style={{ padding: '0.5rem' }} onClick={() => handleDeleteActivity(a.id)}>
                         Delete
                       </button>

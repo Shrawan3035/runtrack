@@ -61,6 +61,36 @@ public class ActivityController {
         return ResponseEntity.ok("Activity deleted successfully");
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateActivity(@PathVariable Long id, @RequestBody Activity updatedActivity) {
+        Long userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Optional<Activity> activityOpt = activityRepository.findById(id);
+        if (activityOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Activity not found");
+        }
+
+        Activity activity = activityOpt.get();
+        if (!activity.getUserId().equals(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied");
+        }
+
+        activity.setDate(updatedActivity.getDate() != null ? updatedActivity.getDate() : activity.getDate());
+        activity.setType(updatedActivity.getType() != null ? updatedActivity.getType() : activity.getType());
+        activity.setCustomName(updatedActivity.getCustomName() != null ? updatedActivity.getCustomName() : activity.getCustomName());
+        activity.setDistance(updatedActivity.getDistance());
+        activity.setDuration(updatedActivity.getDuration() != null ? updatedActivity.getDuration() : activity.getDuration());
+        activity.setElevation(updatedActivity.getElevation());
+        activity.setEffort(updatedActivity.getEffort());
+        activity.setNotes(updatedActivity.getNotes() != null ? updatedActivity.getNotes() : activity.getNotes());
+
+        // Recalculate pace
+        double calculatedPace = calculatePace(activity.getDistance(), activity.getDuration());
+        activity.setPace(calculatedPace);
+
+        Activity saved = activityRepository.save(activity);
+        return ResponseEntity.ok(saved);
+    }
+
     @GetMapping("/stats")
     public ResponseEntity<?> getStats() {
         Long userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();

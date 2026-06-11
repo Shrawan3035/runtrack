@@ -69,6 +69,19 @@ function App() {
   const [onboardGoal, setOnboardGoal] = useState('5K');
   const [onboardLevel, setOnboardLevel] = useState('Beginner');
   const [onboardWeeklyGoal, setOnboardWeeklyGoal] = useState('20');
+  const [onboardWeight, setOnboardWeight] = useState('');
+  const [onboardHeight, setOnboardHeight] = useState('');
+  const [onboardAge, setOnboardAge] = useState('');
+
+  // Profile Edit States
+  const [profileName, setProfileName] = useState('');
+  const [profileGoal, setProfileGoal] = useState('General Health / Cardio');
+  const [profileLevel, setProfileLevel] = useState('Beginner');
+  const [profileWeeklyGoal, setProfileWeeklyGoal] = useState('20');
+  const [profileWeight, setProfileWeight] = useState('');
+  const [profileHeight, setProfileHeight] = useState('');
+  const [profileAge, setProfileAge] = useState('');
+  const [profileSuccessMsg, setProfileSuccessMsg] = useState('');
 
   // Application Data States
   const [activities, setActivities] = useState([]);
@@ -138,6 +151,19 @@ function App() {
     }
   }, []);
 
+  // Populate profile edit states whenever currentUser changes
+  useEffect(() => {
+    if (currentUser) {
+      setProfileName(currentUser.name || '');
+      setProfileGoal(currentUser.fitnessGoal || 'General Health / Cardio');
+      setProfileLevel(currentUser.experienceLevel || 'Beginner');
+      setProfileWeeklyGoal(currentUser.weeklyDistanceGoal ? currentUser.weeklyDistanceGoal.toString() : '20');
+      setProfileWeight(currentUser.weight ? currentUser.weight.toString() : '');
+      setProfileHeight(currentUser.height ? currentUser.height.toString() : '');
+      setProfileAge(currentUser.age ? currentUser.age.toString() : '');
+    }
+  }, [currentUser]);
+
   // Fetch App Data
   const fetchAppData = async () => {
     setLoading(true);
@@ -147,6 +173,14 @@ function App() {
       const st = await api.getStats();
       setStats(st);
       loadMarathonPlan();
+      
+      // Fetch full profile details
+      try {
+        const fullProfile = await api.getProfile();
+        setCurrentUser(prev => prev ? { ...prev, ...fullProfile } : fullProfile);
+      } catch (profileErr) {
+        console.error('Failed to load full profile details', profileErr);
+      }
     } catch (e) {
       console.error(e);
       setErrorMsg('Failed to sync data from cloud server');
@@ -225,7 +259,10 @@ function App() {
         name: onboardName || currentUser.name,
         fitnessGoal: onboardGoal,
         weeklyDistanceGoal: parseFloat(onboardWeeklyGoal),
-        experienceLevel: onboardLevel
+        experienceLevel: onboardLevel,
+        weight: onboardWeight ? parseFloat(onboardWeight) : null,
+        height: onboardHeight ? parseFloat(onboardHeight) : null,
+        age: onboardAge ? parseInt(onboardAge) : null
       });
       
       const newUserData = {
@@ -239,6 +276,35 @@ function App() {
       fetchAppData();
     } catch (err) {
       setErrorMsg('Failed to update your onboarding profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleProfileUpdateSubmit = async (e) => {
+    e.preventDefault();
+    setProfileSuccessMsg('');
+    setErrorMsg('');
+    setLoading(true);
+    try {
+      const updated = await api.updateProfile({
+        name: profileName,
+        fitnessGoal: profileGoal,
+        weeklyDistanceGoal: parseFloat(profileWeeklyGoal),
+        experienceLevel: profileLevel,
+        weight: profileWeight ? parseFloat(profileWeight) : null,
+        height: profileHeight ? parseFloat(profileHeight) : null,
+        age: profileAge ? parseInt(profileAge) : null
+      });
+      
+      setCurrentUser(prev => ({
+        ...prev,
+        ...updated
+      }));
+      setProfileSuccessMsg('Profile updated successfully!');
+      setTimeout(() => setProfileSuccessMsg(''), 4000);
+    } catch (err) {
+      setErrorMsg('Failed to update profile details');
     } finally {
       setLoading(false);
     }
@@ -369,6 +435,10 @@ function App() {
     if (!workoutSuggestion) return;
     setLoading(true);
     try {
+      let notes = `AI Suggested: ${workoutSuggestion.description}\nTips: ${workoutSuggestion.coachingTips}`;
+      if (workoutSuggestion.warmup) notes += `\nWarmup: ${workoutSuggestion.warmup}`;
+      if (workoutSuggestion.cooldown) notes += `\nCooldown: ${workoutSuggestion.cooldown}`;
+
       await api.logActivity({
         date: new Date().toISOString().substring(0, 10),
         type: workoutSuggestion.title.toLowerCase().includes('interval') ? 'interval' : 'easy',
@@ -376,7 +446,7 @@ function App() {
         distance: workoutSuggestion.targetDistance,
         duration: workoutSuggestion.targetDuration,
         effort: workoutSuggestion.difficulty === 'Easy' ? 3 : workoutSuggestion.difficulty === 'Medium' ? 6 : 9,
-        notes: `AI Suggested: ${workoutSuggestion.description}\nTips: ${workoutSuggestion.coachingTips}`
+        notes: notes
       });
       setWorkoutSuggestion(null);
       setSuccessMsg('Suggested workout logged!');
@@ -844,6 +914,44 @@ function App() {
                 <option value="Advanced">Advanced (Competing or running high miles)</option>
               </select>
             </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Age</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="Yrs"
+                  value={onboardAge}
+                  onChange={e => setOnboardAge(e.target.value)}
+                  min="1"
+                  max="120"
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Weight (kg)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="kg"
+                  value={onboardWeight}
+                  onChange={e => setOnboardWeight(e.target.value)}
+                  min="1"
+                  step="0.1"
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Height (cm)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="cm"
+                  value={onboardHeight}
+                  onChange={e => setOnboardHeight(e.target.value)}
+                  min="10"
+                  step="0.1"
+                />
+              </div>
+            </div>
             <div className="form-group">
               <label>Weekly Distance Goal (km)</label>
               <input
@@ -892,6 +1000,9 @@ function App() {
           </li>
           <li className={`nav-item ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>
             <History /> History
+          </li>
+          <li className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>
+            <User /> Profile
           </li>
         </ul>
         <div className="user-profile-section">
@@ -1081,6 +1192,18 @@ function App() {
                         <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Coach's Tip: </span>
                         {workoutSuggestion.coachingTips}
                       </div>
+                      {workoutSuggestion.warmup && (
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem' }}>
+                          <span style={{ color: 'var(--primary)', fontWeight: 600 }}>🔥 Warmup Suggestion: </span>
+                          {workoutSuggestion.warmup}
+                        </div>
+                      )}
+                      {workoutSuggestion.cooldown && (
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem' }}>
+                          <span style={{ color: 'var(--secondary)', fontWeight: 600 }}>❄️ Cooldown Suggestion: </span>
+                          {workoutSuggestion.cooldown}
+                        </div>
+                      )}
                       <button className="btn btn-secondary" onClick={logAIWorkoutDirectly} style={{ marginTop: 'auto' }}>
                         Log Workout Completed
                       </button>
@@ -1575,6 +1698,169 @@ function App() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 7: PROFILE */}
+        {activeTab === 'profile' && (
+          <div className="animate-fade-in">
+            <h2 className="page-title" style={{ marginBottom: '1.5rem' }}>Your Profile</h2>
+            
+            {profileSuccessMsg && (
+              <div className="alert alert-success animate-fade-in" style={{ padding: '1rem', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#10b981', marginBottom: '1.5rem', fontWeight: 500 }}>
+                ✓ {profileSuccessMsg}
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: '2rem' }}>
+              
+              {/* Profile Overview Card */}
+              <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', height: 'fit-content' }}>
+                <div style={{ textAlign: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '1.5rem' }}>
+                  <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--primary), var(--secondary))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', margin: '0 auto 1rem', boxShadow: '0 8px 20px rgba(124, 58, 237, 0.3)' }}>
+                    🏃‍♂️
+                  </div>
+                  <h3 style={{ fontSize: '1.35rem', fontWeight: 700 }}>{currentUser?.name}</h3>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>@{currentUser?.username}</span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '0.5rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Age:</span>
+                    <span style={{ fontWeight: 600 }}>{currentUser?.age ? `${currentUser.age} years` : '—'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '0.5rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Weight:</span>
+                    <span style={{ fontWeight: 600 }}>{currentUser?.weight ? `${currentUser.weight} kg` : '—'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '0.5rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Height:</span>
+                    <span style={{ fontWeight: 600 }}>{currentUser?.height ? `${currentUser.height} cm` : '—'}</span>
+                  </div>
+                  
+                  {currentUser?.weight && currentUser?.height && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '0.5rem' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>BMI:</span>
+                      <span style={{ fontWeight: 600, color: 'var(--secondary)' }}>
+                        {(currentUser.weight / Math.pow(currentUser.height / 100, 2)).toFixed(1)}
+                      </span>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '0.5rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Level:</span>
+                    <span className="badge" style={{ background: 'rgba(124, 58, 237, 0.1)', color: 'var(--primary)', padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600 }}>
+                      {currentUser?.experienceLevel || 'Beginner'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '0.5rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Weekly Goal:</span>
+                    <span style={{ fontWeight: 600 }}>{currentUser?.weeklyDistanceGoal || 0} km</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.9rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Fitness Goal:</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)', marginTop: '0.25rem' }}>{currentUser?.fitnessGoal || '—'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Edit Profile Form */}
+              <div className="card">
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1.25rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
+                  Edit Profile Details
+                </h3>
+                
+                <form onSubmit={handleProfileUpdateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label>Coach Display Name</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={profileName}
+                        onChange={e => setProfileName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label>Age (years)</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={profileAge}
+                        onChange={e => setProfileAge(e.target.value)}
+                        min="1"
+                        max="120"
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label>Weight (kg)</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={profileWeight}
+                        onChange={e => setProfileWeight(e.target.value)}
+                        min="1"
+                        step="0.1"
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label>Height (cm)</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={profileHeight}
+                        onChange={e => setProfileHeight(e.target.value)}
+                        min="10"
+                        step="0.1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label>Fitness Goal</label>
+                    <select className="form-input" value={profileGoal} onChange={e => setProfileGoal(e.target.value)}>
+                      <option value="General Health / Cardio">General Health / Cardio</option>
+                      <option value="5k Training">Complete a 5K</option>
+                      <option value="10k Training">Complete a 10K</option>
+                      <option value="Half Marathon Plan">Run a Half Marathon</option>
+                      <option value="Full Marathon Prep">Run a Full Marathon</option>
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label>Experience Level</label>
+                      <select className="form-input" value={profileLevel} onChange={e => setProfileLevel(e.target.value)}>
+                        <option value="Beginner">Beginner (Just starting)</option>
+                        <option value="Intermediate">Intermediate (Running weekly)</option>
+                        <option value="Advanced">Advanced (Competing/high mileage)</option>
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label>Weekly Goal (km)</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={profileWeeklyGoal}
+                        onChange={e => setProfileWeeklyGoal(e.target.value)}
+                        min="0"
+                        step="0.5"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '0.75rem' }} disabled={loading}>
+                    {loading ? <div className="spinner"></div> : 'Save Changes'}
+                  </button>
+                </form>
+              </div>
+
             </div>
           </div>
         )}

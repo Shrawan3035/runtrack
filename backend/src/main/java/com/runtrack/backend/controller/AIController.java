@@ -71,7 +71,11 @@ public class AIController {
         systemContext.append("- Name: ").append(user.getName()).append("\n");
         systemContext.append("- Goal: ").append(user.getFitnessGoal()).append("\n");
         systemContext.append("- Level: ").append(user.getExperienceLevel()).append("\n");
-        systemContext.append("- Weekly Goal: ").append(user.getWeeklyDistanceGoal()).append(" km\n\n");
+        systemContext.append("- Weekly Goal: ").append(user.getWeeklyDistanceGoal()).append(" km\n");
+        if (user.getAge() != null) systemContext.append("- Age: ").append(user.getAge()).append(" years old\n");
+        if (user.getWeight() != null) systemContext.append("- Weight: ").append(user.getWeight()).append(" kg\n");
+        if (user.getHeight() != null) systemContext.append("- Height: ").append(user.getHeight()).append(" cm\n");
+        systemContext.append("\n");
 
         if (!recentActivities.isEmpty()) {
             systemContext.append("Recent completed runs:\n");
@@ -111,7 +115,11 @@ public class AIController {
         prompt.append("- Name: ").append(user.getName()).append("\n");
         prompt.append("- Goal: ").append(user.getFitnessGoal()).append("\n");
         prompt.append("- Level: ").append(user.getExperienceLevel()).append("\n");
-        prompt.append("- Weekly Goal: ").append(user.getWeeklyDistanceGoal()).append(" km\n\n");
+        prompt.append("- Weekly Goal: ").append(user.getWeeklyDistanceGoal()).append(" km\n");
+        if (user.getAge() != null) prompt.append("- Age: ").append(user.getAge()).append(" years old\n");
+        if (user.getWeight() != null) prompt.append("- Weight: ").append(user.getWeight()).append(" kg\n");
+        if (user.getHeight() != null) prompt.append("- Height: ").append(user.getHeight()).append(" cm\n");
+        prompt.append("\n");
 
         if (!recentActivities.isEmpty()) {
             prompt.append("Recent runs:\n");
@@ -121,7 +129,7 @@ public class AIController {
             prompt.append("\n");
         }
 
-        prompt.append("Provide the workout recommendation in valid JSON format. Return ONLY the JSON object, do not wrap it in markdown block characters (like ```json). Use the exact keys: 'title', 'description', 'targetDistance' (decimal value), 'targetDuration' (string like MM:SS or HH:MM:SS), 'difficulty' (string: Easy, Medium, Hard), and 'coachingTips' (string).\n");
+        prompt.append("Provide the workout recommendation in valid JSON format. Return ONLY the JSON object, do not wrap it in markdown block characters (like ```json). Use the exact keys: 'title', 'description', 'targetDistance' (decimal value), 'targetDuration' (string like MM:SS or HH:MM:SS), 'difficulty' (string: Easy, Medium, Hard), 'coachingTips' (string), 'warmup' (string: specific 2-3 sentence warmup instruction adjusted for their age/weight/level), and 'cooldown' (string: specific 2-3 sentence cooldown/stretching instruction adjusted for their age/weight/level).\n");
 
         String replyText = callGeminiAPISinglePrompt(prompt.toString());
         if (replyText == null) {

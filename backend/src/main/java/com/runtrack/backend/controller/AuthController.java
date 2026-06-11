@@ -94,6 +94,9 @@ public class AuthController {
         if (request.getFitnessGoal() != null) user.setFitnessGoal(request.getFitnessGoal());
         if (request.getWeeklyDistanceGoal() != null) user.setWeeklyDistanceGoal(request.getWeeklyDistanceGoal());
         if (request.getExperienceLevel() != null) user.setExperienceLevel(request.getExperienceLevel());
+        if (request.getWeight() != null) user.setWeight(request.getWeight());
+        if (request.getHeight() != null) user.setHeight(request.getHeight());
+        if (request.getAge() != null) user.setAge(request.getAge());
 
         userRepository.save(user);
         return ResponseEntity.ok(user);

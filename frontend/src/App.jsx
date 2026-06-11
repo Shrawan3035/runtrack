@@ -260,11 +260,26 @@ function App() {
     }
   };
 
+  const sanitizePlanData = (planData) => {
+    if (!planData || !planData.plan) return planData;
+    const planArray = Array.isArray(planData.plan) ? planData.plan : [];
+    const sanitizedWeeks = planArray.map((wk, idx) => {
+      return {
+        ...wk,
+        week: idx + 1
+      };
+    });
+    return {
+      ...planData,
+      plan: sanitizedWeeks
+    };
+  };
+
   const loadMarathonPlan = async () => {
     try {
       const planRes = await api.getMarathonPlan();
       if (planRes && planRes.hasPlan) {
-        setMarathonPlan(planRes);
+        setMarathonPlan(sanitizePlanData(planRes));
         
         // Parse completedRuns from backend database (e.g. "w1_dMonday,w2_dTuesday")
         const checkedMap = {};
@@ -669,7 +684,7 @@ function App() {
     setMarathonLoading(true);
     try {
       const res = await api.generateMarathonPlan(marathonStart, marathonTarget, marathonGoalDist, runsPerWeek);
-      setMarathonPlan(res);
+      setMarathonPlan(sanitizePlanData(res));
       setSelectedMarathonWeek(1);
       setMarathonStartWeek(1);
       setCheckedMarathonDays({});
@@ -701,7 +716,7 @@ function App() {
     setMarathonLoading(true);
     try {
       const res = await api.adaptMarathonPlan();
-      setMarathonPlan(res);
+      setMarathonPlan(sanitizePlanData(res));
       
       // Calculate and align startWeek
       if (res.startDate) {
@@ -744,7 +759,7 @@ function App() {
         targetPace: editPace,
         coachingTips: editCoachingTips
       });
-      setMarathonPlan(updatedPlan);
+      setMarathonPlan(sanitizePlanData(updatedPlan));
       setSelectedMarathonWorkout(null);
       setIsEditingWorkout(false);
       alert('Workout successfully updated!');

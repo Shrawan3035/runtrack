@@ -416,12 +416,27 @@ public class AIController {
     }
 
     private JsonNode findWeekNode(JsonNode parsedArray, int weekNum) {
-        if (parsedArray.isArray()) {
-            for (JsonNode node : parsedArray) {
-                if (node.has("week") && node.get("week").asInt() == weekNum) {
+        if (parsedArray == null || !parsedArray.isArray()) {
+            return null;
+        }
+        for (JsonNode node : parsedArray) {
+            if (node.has("week")) {
+                JsonNode weekNode = node.get("week");
+                if (weekNode.isInt() && weekNode.asInt() == weekNum) {
                     return node;
                 }
+                String weekStr = weekNode.asText().replaceAll("[^0-9]", "");
+                if (!weekStr.isEmpty()) {
+                    try {
+                        if (Integer.parseInt(weekStr) == weekNum) {
+                            return node;
+                        }
+                    } catch (NumberFormatException e) {}
+                }
             }
+        }
+        if (weekNum - 1 >= 0 && weekNum - 1 < parsedArray.size()) {
+            return parsedArray.get(weekNum - 1);
         }
         return null;
     }
@@ -503,14 +518,22 @@ public class AIController {
                 for (int w = 1; w <= totalWeeks; w++) {
                     if (w < currentWeek) {
                         JsonNode origWk = findWeekNode(originalPlanJson, w);
-                        if (origWk != null) adaptedArray.add(origWk);
+                        if (origWk != null) {
+                            adaptedArray.add(origWk);
+                        } else if (w - 1 < originalPlanJson.size()) {
+                            adaptedArray.add(originalPlanJson.get(w - 1));
+                        }
                     } else {
                         JsonNode adaptedWeek = findWeekNode(parsedArray, w);
                         if (adaptedWeek != null) {
                             adaptedArray.add(adaptedWeek);
                         } else {
                             JsonNode origWk = findWeekNode(originalPlanJson, w);
-                            if (origWk != null) adaptedArray.add(origWk);
+                            if (origWk != null) {
+                                adaptedArray.add(origWk);
+                            } else if (w - 1 < originalPlanJson.size()) {
+                                adaptedArray.add(originalPlanJson.get(w - 1));
+                            }
                         }
                     }
                 }

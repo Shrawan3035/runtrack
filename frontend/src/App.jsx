@@ -157,13 +157,17 @@ function App() {
   const loadMarathonPlan = async () => {
     try {
       const planRes = await api.getMarathonPlan();
-      if (planRes.hasPlan) {
+      if (planRes && planRes.hasPlan) {
         setMarathonPlan(planRes);
-        // Load checked days from local storage
-        const savedChecked = localStorage.getItem(`runtrack_marathon_checked_${currentUser?.username}`);
-        if (savedChecked) {
-          setCheckedMarathonDays(JSON.parse(savedChecked));
+        
+        // Parse completedRuns from backend database (e.g. "w1_dMonday,w2_dTuesday")
+        const checkedMap = {};
+        if (planRes.completedRuns) {
+          planRes.completedRuns.split(',').forEach(key => {
+            if (key) checkedMap[key] = true;
+          });
         }
+        setCheckedMarathonDays(checkedMap);
       } else {
         setMarathonPlan(null);
       }
@@ -405,7 +409,11 @@ function App() {
       [key]: isChecking
     };
     setCheckedMarathonDays(updated);
-    localStorage.setItem(`runtrack_marathon_checked_${currentUser?.username}`, JSON.stringify(updated));
+    try {
+      await api.toggleMarathonDayInDb(key);
+    } catch (err) {
+      console.error('Failed to sync completed run state to server', err);
+    }
 
     // Auto-log to backend history if checking a running day
     if (isChecking && workout && workout.distance > 0) {

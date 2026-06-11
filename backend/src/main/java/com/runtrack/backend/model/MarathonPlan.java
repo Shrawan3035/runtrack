@@ -26,6 +26,9 @@ public class MarathonPlan {
     @Column(columnDefinition = "TEXT")
     private String planJson; // Stored JSON of weekly workouts
 
+    @Column(columnDefinition = "TEXT")
+    private String completedRuns; // Comma-separated list of completed day keys
+
     public MarathonPlan() {}
 
     public Long getId() {
@@ -74,5 +77,13 @@ public class MarathonPlan {
 
     public void setPlanJson(String planJson) {
         this.planJson = planJson;
+    }
+
+    public String getCompletedRuns() {
+        return completedRuns;
+    }
+
+    public void setCompletedRuns(String completedRuns) {
+        this.completedRuns = completedRuns;
     }
 }

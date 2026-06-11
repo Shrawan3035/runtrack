@@ -154,4 +154,14 @@ export const api = {
     if (!res.ok) throw new Error('Failed to reset marathon plan');
     return res.json();
   },
+
+  toggleMarathonDayInDb: async (dayKey) => {
+    const res = await fetch(`${API_BASE_URL}/ai/marathon/toggle-day`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ dayKey }),
+    });
+    if (!res.ok) throw new Error('Failed to toggle day completion');
+    return res.json();
+  },
 };

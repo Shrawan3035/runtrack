@@ -83,6 +83,7 @@ const BrandLogo = ({ containerSize = '38px', fallbackEmoji = '⚡', isAuth = fal
 function App() {
   // Navigation & User State
   const [currentUser, setCurrentUser] = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [authMode, setAuthMode] = useState('login'); // login, register, onboarding
   const [activeTab, setActiveTab] = useState('dashboard');
   const [errorMsg, setErrorMsg] = useState('');
@@ -1092,32 +1093,50 @@ function App() {
   // App Dashboard Render
   return (
     <div className="app-container">
+      {/* Mobile Header */}
+      <div className="mobile-header">
+        <div className="brand" style={{ marginBottom: 0 }}>
+          <BrandLogo containerSize="32px" fallbackEmoji="⚡" />
+          <span className="brand-name" style={{ fontSize: '1.25rem' }}>RunTrack</span>
+        </div>
+        <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      {/* Backdrop for mobile sidebar */}
+      {mobileMenuOpen && <div className="sidebar-backdrop" onClick={() => setMobileMenuOpen(false)} />}
+
       {/* Sidebar Navigation */}
-      <nav className="sidebar">
+      <nav className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="brand">
           <BrandLogo containerSize="38px" fallbackEmoji="⚡" />
           <span className="brand-name">RunTrack</span>
         </div>
         <ul className="nav-menu">
-          <li className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+          <li className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => { setActiveTab('dashboard'); setMobileMenuOpen(false); }}>
             <TrendingUp /> Dashboard
           </li>
-          <li className={`nav-item ${activeTab === 'coach' ? 'active' : ''}`} onClick={() => setActiveTab('coach')}>
+          <li className={`nav-item ${activeTab === 'coach' ? 'active' : ''}`} onClick={() => { setActiveTab('coach'); setMobileMenuOpen(false); }}>
             <Brain /> AI Coach
           </li>
-          <li className={`nav-item ${activeTab === 'log' ? 'active' : ''}`} onClick={() => setActiveTab('log')}>
+          <li className={`nav-item ${activeTab === 'log' ? 'active' : ''}`} onClick={() => { setActiveTab('log'); setMobileMenuOpen(false); }}>
             <Plus /> Log Run
           </li>
-          <li className={`nav-item ${activeTab === 'gps' ? 'active' : ''}`} onClick={() => setActiveTab('gps')}>
+          <li className={`nav-item ${activeTab === 'gps' ? 'active' : ''}`} onClick={() => { setActiveTab('gps'); setMobileMenuOpen(false); }}>
             <MapPin /> GPS Tracker
           </li>
-          <li className={`nav-item ${activeTab === 'marathon' ? 'active' : ''}`} onClick={() => setActiveTab('marathon')}>
+          <li className={`nav-item ${activeTab === 'marathon' ? 'active' : ''}`} onClick={() => { setActiveTab('marathon'); setMobileMenuOpen(false); }}>
             <Calendar /> Marathon Planner
           </li>
-          <li className={`nav-item ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>
+          <li className={`nav-item ${activeTab === 'history' ? 'active' : ''}`} onClick={() => { setActiveTab('history'); setMobileMenuOpen(false); }}>
             <History /> History
           </li>
-          <li className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>
+          <li className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => { setActiveTab('profile'); setMobileMenuOpen(false); }}>
             <User /> Profile
           </li>
         </ul>

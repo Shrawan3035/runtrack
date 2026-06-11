@@ -174,4 +174,16 @@ export const api = {
     if (!res.ok) throw new Error('Failed to toggle day completion');
     return res.json();
   },
+
+  deleteAccount: async () => {
+    const res = await fetch(`${API_BASE_URL}/auth/profile`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || 'Failed to delete account');
+    }
+    return res.text();
+  },
 };

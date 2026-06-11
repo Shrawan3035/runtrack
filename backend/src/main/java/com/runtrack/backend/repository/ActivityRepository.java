@@ -10,4 +10,5 @@ import java.util.List;
 public interface ActivityRepository extends JpaRepository<Activity, Long> {
     List<Activity> findByUserIdOrderByDateDesc(Long userId);
     List<Activity> findByUserIdAndDateBetween(Long userId, LocalDate startDate, LocalDate endDate);
+    void deleteByUserId(Long userId);
 }

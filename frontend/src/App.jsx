@@ -310,6 +310,31 @@ function App() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!window.confirm("WARNING: Are you sure you want to permanently delete your account? This will wipe all your running history, training plans, and settings forever. This action cannot be undone.")) return;
+    if (!window.confirm("FINAL CONFIRMATION: Do you really want to delete your account?")) return;
+    
+    setLoading(true);
+    try {
+      await api.deleteAccount();
+      api.logout();
+      setCurrentUser(null);
+      setAuthMode('login');
+      // Clear lists
+      setActivities([]);
+      setChatMessages([{ role: 'coach', text: 'Hello! I am your AI Running Coach. How is your training going today?' }]);
+      setWorkoutSuggestion(null);
+      setMarathonPlan(null);
+      
+      setSuccessMsg('Your account has been permanently deleted.');
+      setTimeout(() => setSuccessMsg(''), 5000);
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to delete account');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogout = () => {
     api.logout();
     setCurrentUser(null);
@@ -1762,6 +1787,14 @@ function App() {
                     <span style={{ color: 'var(--text-muted)' }}>Fitness Goal:</span>
                     <span style={{ fontWeight: 600, color: 'var(--text-primary)', marginTop: '0.25rem' }}>{currentUser?.fitnessGoal || '—'}</span>
                   </div>
+                  
+                  <button 
+                    className="btn btn-danger" 
+                    style={{ width: '100%', marginTop: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }} 
+                    onClick={handleDeleteAccount}
+                  >
+                    Delete Account
+                  </button>
                 </div>
               </div>
 

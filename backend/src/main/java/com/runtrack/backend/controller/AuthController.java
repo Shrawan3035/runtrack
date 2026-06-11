@@ -8,6 +8,8 @@ import com.runtrack.backend.model.User;
 import com.runtrack.backend.model.UserSession;
 import com.runtrack.backend.repository.UserRepository;
 import com.runtrack.backend.repository.UserSessionRepository;
+import com.runtrack.backend.repository.ActivityRepository;
+import com.runtrack.backend.repository.MarathonPlanRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +31,12 @@ public class AuthController {
 
     @Autowired
     private UserSessionRepository sessionRepository;
+
+    @Autowired
+    private ActivityRepository activityRepository;
+
+    @Autowired
+    private MarathonPlanRepository marathonPlanRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -108,5 +116,25 @@ public class AuthController {
         Long userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         sessionRepository.deleteByUserId(userId);
         return ResponseEntity.ok("Logged out successfully");
+    }
+
+    @DeleteMapping("/profile")
+    @Transactional
+    public ResponseEntity<?> deleteAccount() {
+        Long userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Optional<User> userOpt = userRepository.findById(userId);
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
+        }
+
+        // Clean up dependent tables
+        sessionRepository.deleteByUserId(userId);
+        activityRepository.deleteByUserId(userId);
+        marathonPlanRepository.deleteByUserId(userId);
+        
+        // Delete user record
+        userRepository.deleteById(userId);
+
+        return ResponseEntity.ok("Account and all related training data deleted successfully");
     }
 }

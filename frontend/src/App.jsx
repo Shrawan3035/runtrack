@@ -1839,35 +1839,84 @@ function App() {
                 {marathonPlan.plan && marathonPlan.plan.length > 0 && (
                   <div style={{ 
                     display: 'flex', 
-                    justifyContent: 'space-between', 
-                    alignItems: 'center', 
+                    flexDirection: 'column',
+                    gap: '0.75rem',
                     marginBottom: '1.5rem',
                     background: 'rgba(255, 255, 255, 0.02)',
                     border: '1px solid var(--border-light)',
                     borderRadius: '12px',
                     padding: '0.75rem 1.25rem'
                   }}>
-                    <button 
-                      type="button"
-                      className="btn btn-secondary" 
-                      onClick={handlePrevWeeks}
-                      disabled={marathonStartWeek === 1}
-                      style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}
-                    >
-                      ← Previous 4 Weeks
-                    </button>
-                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                      Weeks {marathonStartWeek} – {Math.min(marathonPlan.plan?.length || 0, marathonStartWeek + 3)} of {marathonPlan.plan?.length || 0}
-                    </span>
-                    <button 
-                      type="button"
-                      className="btn btn-secondary" 
-                      onClick={handleNextWeeks}
-                      disabled={marathonStartWeek + 3 >= (marathonPlan.plan?.length || 0)}
-                      style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}
-                    >
-                      Next 4 Weeks →
-                    </button>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <button 
+                        type="button"
+                        className="btn btn-secondary" 
+                        onClick={handlePrevWeeks}
+                        disabled={marathonStartWeek === 1}
+                        style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}
+                      >
+                        ← Previous 4 Weeks
+                      </button>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        Weeks {marathonStartWeek} – {Math.min(marathonPlan.plan?.length || 0, marathonStartWeek + 3)} of {marathonPlan.plan?.length || 0}
+                      </span>
+                      <button 
+                        type="button"
+                        className="btn btn-secondary" 
+                        onClick={handleNextWeeks}
+                        disabled={marathonStartWeek + 3 >= (marathonPlan.plan?.length || 0)}
+                        style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}
+                      >
+                        Next 4 Weeks →
+                      </button>
+                    </div>
+
+                    <div style={{ 
+                      display: 'flex', 
+                      gap: '0.5rem', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      flexWrap: 'wrap',
+                      borderTop: '1px solid var(--border-light)',
+                      paddingTop: '0.75rem',
+                      marginTop: '0.25rem'
+                    }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginRight: '0.5rem' }}>Jump to Week:</span>
+                      {marathonPlan.plan?.map((wk) => {
+                        const isCurrentBlock = wk.week >= marathonStartWeek && wk.week < marathonStartWeek + 4;
+                        const isSelected = wk.week === selectedMarathonWeek;
+                        return (
+                          <button
+                            key={wk.week}
+                            type="button"
+                            style={{
+                              padding: '0.25rem 0.5rem',
+                              borderRadius: '6px',
+                              border: isSelected ? '1px solid var(--primary)' : '1px solid transparent',
+                              background: isSelected 
+                                ? 'var(--primary)' 
+                                : isCurrentBlock 
+                                  ? 'rgba(0, 242, 254, 0.12)' 
+                                  : 'rgba(255, 255, 255, 0.04)',
+                              color: isSelected ? '#000' : isCurrentBlock ? 'var(--primary)' : 'var(--text-secondary)',
+                              cursor: 'pointer',
+                              fontSize: '0.75rem',
+                              fontWeight: isSelected || isCurrentBlock ? 'bold' : 'normal',
+                              minWidth: '32px',
+                              textAlign: 'center',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onClick={() => {
+                              setSelectedMarathonWeek(wk.week);
+                              const startWk = wk.week - (wk.week - 1) % 4;
+                              setMarathonStartWeek(startWk);
+                            }}
+                          >
+                            W{wk.week}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 

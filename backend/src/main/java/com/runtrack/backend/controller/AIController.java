@@ -365,8 +365,12 @@ public class AIController {
         
         MarathonPlan plan = new MarathonPlan();
         plan.setUserId(userId);
-        plan.setStartDate(LocalDate.parse(startDateStr));
-        plan.setTargetDate(LocalDate.parse(targetDateStr));
+        try {
+            plan.setStartDate(LocalDate.parse(startDateStr));
+            plan.setTargetDate(LocalDate.parse(targetDateStr));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid date format. Expected YYYY-MM-DD.");
+        }
         plan.setTargetDistance(distance);
         try {
             plan.setPlanJson(objectMapper.writeValueAsString(planObj));

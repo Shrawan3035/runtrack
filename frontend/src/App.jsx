@@ -525,20 +525,30 @@ function App() {
     while ((match = jsonRegex.exec(text)) !== null) {
       try {
         const parsed = JSON.parse(match[1]);
-        if (parsed && parsed.marathonPlan) {
-          return parsed.marathonPlan;
+        if (parsed) {
+          if (parsed.marathonPlan) {
+            return parsed.marathonPlan;
+          }
+          if (parsed.plan && Array.isArray(parsed.plan)) {
+            return parsed;
+          }
         }
       } catch (e) {}
     }
     
-    if (text.includes('"marathonPlan"')) {
+    if (text.includes('"plan"') || text.includes('"marathonPlan"')) {
       try {
         const start = text.indexOf('{');
         const end = text.lastIndexOf('}');
         if (start !== -1 && end !== -1 && end > start) {
           const parsed = JSON.parse(text.substring(start, end + 1));
-          if (parsed && parsed.marathonPlan) {
-            return parsed.marathonPlan;
+          if (parsed) {
+            if (parsed.marathonPlan) {
+              return parsed.marathonPlan;
+            }
+            if (parsed.plan && Array.isArray(parsed.plan)) {
+              return parsed;
+            }
           }
         }
       } catch (e) {}
@@ -547,25 +557,34 @@ function App() {
   };
 
   const handleApplyPlanFromChat = async (planData) => {
-    if (!window.confirm(`Are you sure you want to apply this custom ${planData.targetDistance} plan to your Marathon Planner? This will replace your current plan.`)) return;
+    if (!planData || !planData.plan || !Array.isArray(planData.plan)) {
+      alert('Unable to apply plan: Training plan data is missing or malformed.');
+      return;
+    }
+    if (!window.confirm(`Are you sure you want to apply this custom ${planData.targetDistance || 'Training'} plan to your Marathon Planner? This will replace your current plan.`)) return;
     setLoading(true);
     try {
       // Format start and target date if they contain extra guidance text
       let sDate = planData.startDate || new Date().toISOString().substring(0, 10);
       let tDate = planData.targetDate || new Date().toISOString().substring(0, 10);
       
-      // Clean dates of parentheses and text
-      sDate = sDate.split(' ')[0].replace(/[()]/g, '');
-      tDate = tDate.split(' ')[0].replace(/[()]/g, '');
+      // Clean dates by extracting the first YYYY-MM-DD pattern (e.g., matching "2026-06-15 (Monday)" to "2026-06-15")
+      const dateRegex = /\d{4}-\d{2}-\d{2}/;
+      const sMatch = String(sDate).match(dateRegex);
+      const tMatch = String(tDate).match(dateRegex);
+      
+      sDate = sMatch ? sMatch[0] : new Date().toISOString().substring(0, 10);
+      tDate = tMatch ? tMatch[0] : new Date(Date.now() + 84 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10);
 
       await api.saveMarathonPlan({
         startDate: sDate,
         targetDate: tDate,
-        targetDistance: planData.targetDistance,
+        targetDistance: planData.targetDistance || 'Custom Training Plan',
         plan: planData.plan
       });
       
       setCheckedMarathonDays({});
+      setSelectedMarathonWeek(1);
       await loadMarathonPlan();
       alert('Plan successfully applied to your Marathon Planner!');
       setActiveTab('marathon');

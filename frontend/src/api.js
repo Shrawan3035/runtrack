@@ -156,6 +156,19 @@ export const api = {
     return res.json();
   },
 
+  saveMarathonPlan: async (planData) => {
+    const res = await fetch(`${API_BASE_URL}/ai/marathon/save`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(planData),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || 'Failed to save marathon plan');
+    }
+    return res.json();
+  },
+
   resetMarathonPlan: async () => {
     const res = await fetch(`${API_BASE_URL}/ai/marathon`, {
       method: 'DELETE',

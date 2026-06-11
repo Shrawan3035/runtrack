@@ -85,7 +85,30 @@ public class AIController {
             }
             systemContext.append("\n");
         }
-        systemContext.append("Answer the user's running questions, offer coaching support, encourage them, and keep responses concise and structured. Use markdown formatting if helpful.\n");
+        systemContext.append("Answer the user's running questions, offer coaching support, encourage them, and keep responses concise. Use markdown formatting. ");
+        systemContext.append("CRITICAL: If the user asks you to design, create, or modify a running schedule, program, or training plan, you must write your advice, and then at the very end of your response, output a markdown JSON block containing the complete schedule using this exact format:\n");
+        systemContext.append("```json\n");
+        systemContext.append("{\n");
+        systemContext.append("  \"marathonPlan\": {\n");
+        systemContext.append("    \"startDate\": \"YYYY-MM-DD (start of week 1 Monday)\",\n");
+        systemContext.append("    \"targetDate\": \"YYYY-MM-DD (target end date)\",\n");
+        systemContext.append("    \"targetDistance\": \"5k / 10k / Half Marathon / Full Marathon\",\n");
+        systemContext.append("    \"runsPerWeek\": 4,\n");
+        systemContext.append("    \"plan\": [\n");
+        systemContext.append("      {\n");
+        systemContext.append("        \"week\": 1,\n");
+        systemContext.append("        \"weeklyDistance\": 20.0,\n");
+        systemContext.append("        \"schedule\": [\n");
+        systemContext.append("          { \"day\": \"Monday\", \"type\": \"Rest\", \"distance\": 0.0, \"description\": \"Rest day\", \"targetDuration\": \"—\", \"coachingTips\": \"Recuperate\", \"targetPace\": \"—\" },\n");
+        systemContext.append("          { \"day\": \"Tuesday\", \"type\": \"Easy\", \"distance\": 5.0, \"description\": \"Easy run\", \"targetDuration\": \"35:00\", \"coachingTips\": \"Conversational pace\", \"targetPace\": \"7:00 /km\" },\n");
+        systemContext.append("          ...\n");
+        systemContext.append("        ]\n");
+        systemContext.append("      }\n");
+        systemContext.append("    ]\n");
+        systemContext.append("  }\n");
+        systemContext.append("}\n");
+        systemContext.append("```\n");
+        systemContext.append("Ensure each week has exactly 7 objects (Monday to Sunday in order). Rest days must have distance 0.0 and type 'Rest'. Keep the JSON valid and return it as the final block of your message.\n");
 
         // Call Gemini
         String replyText = callGeminiAPI(systemContext.toString(), messages);
@@ -323,6 +346,47 @@ public class AIController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("AI returned invalid JSON: " + replyText);
         }
     }
+    @PostMapping("/marathon/save")
+    @Transactional
+    public ResponseEntity<?> saveMarathonPlan(@RequestBody Map<String, Object> request) {
+        Long userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        
+        String startDateStr = (String) request.get("startDate");
+        String targetDateStr = (String) request.get("targetDate");
+        String distance = (String) request.get("targetDistance");
+        Object planObj = request.get("plan");
+        
+        if (startDateStr == null || targetDateStr == null || distance == null || planObj == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Missing startDate, targetDate, targetDistance, or plan");
+        }
+        
+        // Delete existing plans first
+        marathonPlanRepository.deleteByUserId(userId);
+        
+        MarathonPlan plan = new MarathonPlan();
+        plan.setUserId(userId);
+        plan.setStartDate(LocalDate.parse(startDateStr));
+        plan.setTargetDate(LocalDate.parse(targetDateStr));
+        plan.setTargetDistance(distance);
+        try {
+            plan.setPlanJson(objectMapper.writeValueAsString(planObj));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid plan format");
+        }
+        plan.setCompletedRuns("");
+        
+        marathonPlanRepository.save(plan);
+        
+        return ResponseEntity.ok(Map.of(
+            "hasPlan", true,
+            "startDate", plan.getStartDate(),
+            "targetDate", plan.getTargetDate(),
+            "targetDistance", plan.getTargetDistance(),
+            "plan", planObj
+        ));
+    }
+
+
 
     @DeleteMapping("/marathon")
     @Transactional

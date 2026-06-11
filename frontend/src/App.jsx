@@ -484,6 +484,64 @@ function App() {
     }
   };
 
+  const extractMarathonPlanFromText = (text) => {
+    if (!text) return null;
+    const jsonRegex = /```json\s*([\s\S]*?)\s*```/g;
+    let match;
+    while ((match = jsonRegex.exec(text)) !== null) {
+      try {
+        const parsed = JSON.parse(match[1]);
+        if (parsed && parsed.marathonPlan) {
+          return parsed.marathonPlan;
+        }
+      } catch (e) {}
+    }
+    
+    if (text.includes('"marathonPlan"')) {
+      try {
+        const start = text.indexOf('{');
+        const end = text.lastIndexOf('}');
+        if (start !== -1 && end !== -1 && end > start) {
+          const parsed = JSON.parse(text.substring(start, end + 1));
+          if (parsed && parsed.marathonPlan) {
+            return parsed.marathonPlan;
+          }
+        }
+      } catch (e) {}
+    }
+    return null;
+  };
+
+  const handleApplyPlanFromChat = async (planData) => {
+    if (!window.confirm(`Are you sure you want to apply this custom ${planData.targetDistance} plan to your Marathon Planner? This will replace your current plan.`)) return;
+    setLoading(true);
+    try {
+      // Format start and target date if they contain extra guidance text
+      let sDate = planData.startDate || new Date().toISOString().substring(0, 10);
+      let tDate = planData.targetDate || new Date().toISOString().substring(0, 10);
+      
+      // Clean dates of parentheses and text
+      sDate = sDate.split(' ')[0].replace(/[()]/g, '');
+      tDate = tDate.split(' ')[0].replace(/[()]/g, '');
+
+      await api.saveMarathonPlan({
+        startDate: sDate,
+        targetDate: tDate,
+        targetDistance: planData.targetDistance,
+        plan: planData.plan
+      });
+      
+      setCheckedMarathonDays({});
+      await loadMarathonPlan();
+      alert('Plan successfully applied to your Marathon Planner!');
+      setActiveTab('marathon');
+    } catch (err) {
+      alert('Failed to apply plan: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // AI Marathon Planner
   const handleGenerateMarathonPlan = async (e) => {
     e.preventDefault();
@@ -1251,13 +1309,49 @@ function App() {
                   </div>
                   
                   <div className="chat-messages">
-                    {chatMessages.map((msg, idx) => (
-                      <div className={`chat-msg-row ${msg.role}`} key={idx}>
-                        <div className={`chat-bubble ${msg.role}`}>
-                          {msg.text}
+                    {chatMessages.map((msg, idx) => {
+                      const detectedPlan = extractMarathonPlanFromText(msg.text);
+                      // Remove markdown code blocks of json from display text for clean interface
+                      const cleanText = msg.text.replace(/```json\s*([\s\S]*?)\s*```/g, '').trim();
+
+                      return (
+                        <div className={`chat-msg-row ${msg.role}`} key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start', gap: '0.25rem' }}>
+                          <div className={`chat-bubble ${msg.role}`} style={{ whiteSpace: 'pre-line' }}>
+                            {cleanText || msg.text}
+                          </div>
+                          {detectedPlan && (
+                            <div className="animate-fade-in" style={{ 
+                              marginTop: '0.25rem', 
+                              background: 'rgba(255, 255, 255, 0.03)', 
+                              border: '1px solid var(--border-light)', 
+                              borderRadius: '12px', 
+                              padding: '1rem', 
+                              width: '90%', 
+                              maxWidth: '320px', 
+                              display: 'flex', 
+                              flexDirection: 'column', 
+                              gap: '0.5rem', 
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                              alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start'
+                            }}>
+                              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                📅 Custom {detectedPlan.targetDistance} Plan Detected
+                              </div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                Duration: {detectedPlan.plan?.length || 0} weeks ({detectedPlan.runsPerWeek} runs/week)
+                              </div>
+                              <button 
+                                className="btn btn-primary" 
+                                style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', marginTop: '0.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
+                                onClick={() => handleApplyPlanFromChat(detectedPlan)}
+                              >
+                                Apply to Marathon Calendar
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     {chatLoading && (
                       <div className="chat-msg-row coach">
                         <div className="chat-bubble coach" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

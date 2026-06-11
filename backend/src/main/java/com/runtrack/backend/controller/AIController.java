@@ -129,7 +129,7 @@ public class AIController {
         }
 
         try {
-            String clean = replyText.replaceAll("```json|```", "").trim();
+            String clean = extractJson(replyText);
             JsonNode jsonNode = objectMapper.readTree(clean);
             return ResponseEntity.ok(jsonNode);
         } catch (Exception e) {
@@ -245,7 +245,7 @@ public class AIController {
         }
 
         try {
-            String clean = replyText.replaceAll("```json|```", "").trim();
+            String clean = extractJson(replyText);
             // Test parse it
             JsonNode parsedArray = objectMapper.readTree(clean);
 
@@ -471,5 +471,27 @@ public class AIController {
             e.printStackTrace();
         }
         return null;
+    }
+
+    private String extractJson(String text) {
+        if (text == null) return null;
+        int firstArray = text.indexOf('[');
+        int firstObject = text.indexOf('{');
+        
+        int start = -1;
+        int end = -1;
+        
+        if (firstArray != -1 && (firstObject == -1 || firstArray < firstObject)) {
+            start = firstArray;
+            end = text.lastIndexOf(']');
+        } else if (firstObject != -1) {
+            start = firstObject;
+            end = text.lastIndexOf('}');
+        }
+        
+        if (start != -1 && end != -1 && end > start) {
+            return text.substring(start, end + 1);
+        }
+        return text.trim();
     }
 }

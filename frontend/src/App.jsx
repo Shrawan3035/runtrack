@@ -149,6 +149,35 @@ function App() {
   const [runsPerWeek, setRunsPerWeek] = useState(4);
   const [selectedMarathonWorkout, setSelectedMarathonWorkout] = useState(null);
   const [editingActivity, setEditingActivity] = useState(null);
+  const [marathonViewMode, setMarathonViewMode] = useState('calendar'); // 'calendar' or 'weekly'
+
+  const getCalendarDate = (startDateStr, weekNum, dayName) => {
+    if (!startDateStr) return '';
+    try {
+      const parts = startDateStr.split('-');
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      
+      const dayIndices = {
+        'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3, 'friday': 4, 'saturday': 5, 'sunday': 6
+      };
+      const dayIdx = dayIndices[dayName.toLowerCase().trim()];
+      if (dayIdx === undefined) return '';
+      
+      const daysToAdd = (weekNum - 1) * 7 + dayIdx;
+      const date = new Date(Date.UTC(year, month, day + daysToAdd));
+      
+      return date.toLocaleDateString(undefined, { 
+        month: 'short', 
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: 'UTC'
+      });
+    } catch (e) {
+      return '';
+    }
+  };
 
   // Manual Log Run Form
   const [logDate, setLogDate] = useState(new Date().toISOString().substring(0, 10));
@@ -1655,115 +1684,239 @@ function App() {
                   </button>
                 </div>
 
-                {/* Week Selector Tabs */}
-                <h4 style={{ fontSize: '1rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Select Week</h4>
-                <div className="week-tabs-container">
-                  {marathonPlan.plan?.map((wk) => (
-                    <button 
-                      key={wk.week} 
-                      className={`week-tab-btn ${selectedMarathonWeek === wk.week ? 'active' : ''}`}
-                      onClick={() => setSelectedMarathonWeek(wk.week)}
-                    >
-                      W{wk.week}
-                    </button>
-                  ))}
+                {/* View Mode Toggle Bar */}
+                <div className="calendar-view-toggle-bar">
+                  <button 
+                    className={`calendar-toggle-btn ${marathonViewMode === 'calendar' ? 'active' : ''}`}
+                    onClick={() => setMarathonViewMode('calendar')}
+                  >
+                    📅 Complete Calendar
+                  </button>
+                  <button 
+                    className={`calendar-toggle-btn ${marathonViewMode === 'weekly' ? 'active' : ''}`}
+                    onClick={() => setMarathonViewMode('weekly')}
+                  >
+                    🗓️ Weekly View
+                  </button>
                 </div>
 
-                {/* Selected Week Data */}
-                {(() => {
-                  const activeWeekData = marathonPlan.plan?.find(w => w.week === selectedMarathonWeek) || marathonPlan.plan?.[0];
-                  if (!activeWeekData) return null;
-
-                  const activeWeekRuns = activeWeekData.schedule?.filter(d => d.distance > 0) || [];
-                  const completedActiveWeekRuns = activeWeekRuns.filter(d => !!checkedMarathonDays[`w${selectedMarathonWeek}_d${d.day}`]);
-                  const progressPercent = activeWeekRuns.length > 0 ? Math.round((completedActiveWeekRuns.length / activeWeekRuns.length) * 100) : 0;
-
-                  return (
-                    <div className="animate-fade-in">
-                      {/* Week Progress Summary */}
-                      <div className="card" style={{ marginBottom: '1.5rem', background: 'rgba(30, 41, 59, 0.4)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                          <div>
-                            <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Week {selectedMarathonWeek} Summary</h3>
-                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem' }}>
-                              {completedActiveWeekRuns.length} of {activeWeekRuns.length} workouts completed
-                            </p>
+                {/* Complete Calendar Grid View */}
+                {marathonViewMode === 'calendar' && (
+                  <div className="marathon-calendar-container-scrollable animate-fade-in">
+                    <div className="calendar-grid-header-days">
+                      <div>Week</div>
+                      <div>Mon</div>
+                      <div>Tue</div>
+                      <div>Wed</div>
+                      <div>Thu</div>
+                      <div>Fri</div>
+                      <div>Sat</div>
+                      <div>Sun</div>
+                    </div>
+                    
+                    <div className="marathon-calendar-grid">
+                      {marathonPlan.plan?.map((wk) => (
+                        <div key={wk.week} className="calendar-grid-row">
+                          {/* Week Label Side Cell */}
+                          <div style={{
+                            background: 'rgba(255, 255, 255, 0.02)',
+                            border: '1px solid var(--border-light)',
+                            borderRadius: '12px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            padding: '0.5rem',
+                            textAlign: 'center',
+                            minHeight: '85px'
+                          }}>
+                            <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--primary)' }}>W{wk.week}</span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{wk.weeklyDistance} km</span>
                           </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--primary)', fontFamily: 'var(--font-display)' }}>
-                              {activeWeekData.weeklyDistance} km
-                            </div>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Planned Volume</span>
-                          </div>
-                        </div>
-                        <div style={{ height: '8px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
-                          <div style={{ width: `${progressPercent}%`, height: '100%', background: 'var(--primary)', transition: 'width 0.4s ease-in-out' }}></div>
-                        </div>
-                      </div>
 
-                      {/* Day by Day Calendar List */}
-                      <h4 style={{ fontSize: '1rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>Training Schedule</h4>
-                      <div>
-                        {activeWeekData.schedule?.map((day, dayIdx) => {
-                          const dayKey = `w${selectedMarathonWeek}_d${day.day}`;
-                          const isChecked = !!checkedMarathonDays[dayKey];
-                          const isRest = day.type === 'Rest' || day.distance === 0;
+                          {/* 7 Days of the Week */}
+                          {wk.schedule?.map((day, dayIdx) => {
+                            const dayKey = `w${wk.week}_d${day.day}`;
+                            const isChecked = !!checkedMarathonDays[dayKey];
+                            const isRest = day.type === 'Rest' || day.distance === 0;
+                            const formattedDate = getCalendarDate(marathonPlan.startDate, wk.week, day.day);
 
-                          return (
-                            <div className={`calendar-day-card ${isChecked ? 'completed' : ''} ${isRest ? 'rest-day-card' : ''}`} key={dayIdx}>
-                              <div className="calendar-day-left">
-                                <div 
-                                  className={`calendar-circle-checkbox ${isChecked ? 'checked' : ''}`}
-                                  onClick={() => toggleMarathonDay(selectedMarathonWeek, day.day, day)}
-                                >
-                                  {isChecked && <Check size={16} />}
+                            return (
+                              <div 
+                                key={dayIdx} 
+                                className={`calendar-grid-cell ${isChecked ? 'completed' : ''} ${isRest ? 'rest' : ''}`}
+                                onClick={() => setSelectedMarathonWorkout({ weekNum: wk.week, day: day.day, workout: day })}
+                              >
+                                {/* Cell Header: Date + Checkmark */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                  <span>{formattedDate ? formattedDate.split(',')[0] : ''}</span>
+                                  {isChecked && (
+                                    <span style={{ color: '#10B981', fontWeight: 'bold' }}>✓</span>
+                                  )}
                                 </div>
-                                
-                                <div className="calendar-day-info">
-                                  <div className="calendar-day-name">{day.day}</div>
-                                  <div className="calendar-workout-title">
-                                    {isRest ? (
-                                      <span>Rest & Recovery</span>
-                                    ) : (
-                                      <>
-                                        <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>{day.distance} km Run</span>
-                                        <span className={`activity-badge badge-${day.type?.toLowerCase().includes('interval') ? 'interval' : day.type?.toLowerCase().includes('tempo') ? 'tempo' : day.type?.toLowerCase().includes('long') ? 'long' : 'easy'}`}>
-                                          {day.type}
-                                        </span>
-                                      </>
-                                    )}
-                                  </div>
-                                  <p className="calendar-workout-desc" style={{ fontSize: '0.85rem' }}>{day.description}</p>
-                                  
-                                  {!isRest && (
-                                    <div className="calendar-workout-meta" style={{ marginTop: '0.25rem' }}>
-                                      {day.targetDuration && day.targetDuration !== '—' && (
-                                        <span className="calendar-meta-item">⏱️ {day.targetDuration}</span>
-                                      )}
-                                      {day.targetPace && day.targetPace !== '—' && (
-                                        <span className="calendar-meta-item">⚡ {day.targetPace}</span>
-                                      )}
+
+                                {/* Cell Body: Distance / Type */}
+                                <div style={{ textAlign: 'center', margin: '0.2rem 0' }}>
+                                  {isRest ? (
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Rest</span>
+                                  ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.1rem' }}>
+                                      <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>{day.distance}k</span>
+                                      <span style={{ 
+                                        fontSize: '0.55rem', 
+                                        padding: '1px 4px', 
+                                        borderRadius: '4px',
+                                        background: day.type?.toLowerCase().includes('interval') 
+                                          ? 'rgba(239, 68, 68, 0.15)' 
+                                          : day.type?.toLowerCase().includes('tempo') 
+                                            ? 'rgba(245, 158, 11, 0.15)' 
+                                            : day.type?.toLowerCase().includes('long') 
+                                              ? 'rgba(59, 130, 246, 0.15)' 
+                                              : 'rgba(16, 185, 129, 0.15)',
+                                        color: day.type?.toLowerCase().includes('interval') 
+                                          ? '#EF4444' 
+                                          : day.type?.toLowerCase().includes('tempo') 
+                                            ? '#F59E0B' 
+                                            : day.type?.toLowerCase().includes('long') 
+                                              ? '#3B82F6' 
+                                              : '#10B981'
+                                      }}>
+                                        {day.type}
+                                      </span>
                                     </div>
                                   )}
                                 </div>
+                                <div style={{ height: '4px' }}></div>
                               </div>
-                              
-                              <div className="calendar-day-right">
-                                <button 
-                                  className="btn btn-secondary" 
-                                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-                                  onClick={() => setSelectedMarathonWorkout({ weekNum: selectedMarathonWeek, day: day.day, workout: day })}
-                                >
-                                  Details
-                                </button>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Weekly View (List View) */}
+                {marathonViewMode === 'weekly' && (
+                  <div className="animate-fade-in">
+                    {/* Week Selector Tabs */}
+                    <h4 style={{ fontSize: '1rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Select Week</h4>
+                    <div className="week-tabs-container">
+                      {marathonPlan.plan?.map((wk) => (
+                        <button 
+                          key={wk.week} 
+                          className={`week-tab-btn ${selectedMarathonWeek === wk.week ? 'active' : ''}`}
+                          onClick={() => setSelectedMarathonWeek(wk.week)}
+                        >
+                          W{wk.week}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Selected Week Data */}
+                    {(() => {
+                      const activeWeekData = marathonPlan.plan?.find(w => w.week === selectedMarathonWeek) || marathonPlan.plan?.[0];
+                      if (!activeWeekData) return null;
+
+                      const activeWeekRuns = activeWeekData.schedule?.filter(d => d.distance > 0) || [];
+                      const completedActiveWeekRuns = activeWeekRuns.filter(d => !!checkedMarathonDays[`w${selectedMarathonWeek}_d${d.day}`]);
+                      const progressPercent = activeWeekRuns.length > 0 ? Math.round((completedActiveWeekRuns.length / activeWeekRuns.length) * 100) : 0;
+
+                      return (
+                        <div className="animate-fade-in">
+                          {/* Week Progress Summary */}
+                          <div className="card" style={{ marginBottom: '1.5rem', background: 'rgba(30, 41, 59, 0.4)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                              <div>
+                                <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Week {selectedMarathonWeek} Summary</h3>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                                  {completedActiveWeekRuns.length} of {activeWeekRuns.length} workouts completed
+                                </p>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--primary)', fontFamily: 'var(--font-display)' }}>
+                                  {activeWeekData.weeklyDistance} km
+                                </div>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Planned Volume</span>
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
+                            <div style={{ height: '8px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
+                              <div style={{ width: `${progressPercent}%`, height: '100%', background: 'var(--primary)', transition: 'width 0.4s ease-in-out' }}></div>
+                            </div>
+                          </div>
+
+                          {/* Day by Day Calendar List */}
+                          <h4 style={{ fontSize: '1rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>Training Schedule</h4>
+                          <div>
+                            {activeWeekData.schedule?.map((day, dayIdx) => {
+                              const dayKey = `w${selectedMarathonWeek}_d${day.day}`;
+                              const isChecked = !!checkedMarathonDays[dayKey];
+                              const isRest = day.type === 'Rest' || day.distance === 0;
+
+                              return (
+                                <div className={`calendar-day-card ${isChecked ? 'completed' : ''} ${isRest ? 'rest-day-card' : ''}`} key={dayIdx}>
+                                  <div className="calendar-day-left">
+                                    <div 
+                                      className={`calendar-circle-checkbox ${isChecked ? 'checked' : ''}`}
+                                      onClick={() => toggleMarathonDay(selectedMarathonWeek, day.day, day)}
+                                    >
+                                      {isChecked && <Check size={16} />}
+                                    </div>
+                                    
+                                    <div className="calendar-day-info">
+                                      <div className="calendar-day-name">
+                                        {day.day}
+                                        {marathonPlan.startDate && (
+                                          <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 'normal', textTransform: 'none', marginLeft: '0.5rem' }}>
+                                            — {getCalendarDate(marathonPlan.startDate, selectedMarathonWeek, day.day)}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="calendar-workout-title">
+                                        {isRest ? (
+                                          <span>Rest & Recovery</span>
+                                        ) : (
+                                          <>
+                                            <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>{day.distance} km Run</span>
+                                            <span className={`activity-badge badge-${day.type?.toLowerCase().includes('interval') ? 'interval' : day.type?.toLowerCase().includes('tempo') ? 'tempo' : day.type?.toLowerCase().includes('long') ? 'long' : 'easy'}`}>
+                                              {day.type}
+                                            </span>
+                                          </>
+                                        )}
+                                      </div>
+                                      <p className="calendar-workout-desc" style={{ fontSize: '0.85rem' }}>{day.description}</p>
+                                      
+                                      {!isRest && (
+                                        <div className="calendar-workout-meta" style={{ marginTop: '0.25rem' }}>
+                                          {day.targetDuration && day.targetDuration !== '—' && (
+                                            <span className="calendar-meta-item">⏱️ {day.targetDuration}</span>
+                                          )}
+                                          {day.targetPace && day.targetPace !== '—' && (
+                                            <span className="calendar-meta-item">⚡ {day.targetPace}</span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="calendar-day-right">
+                                    <button 
+                                      className="btn btn-secondary" 
+                                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                                      onClick={() => setSelectedMarathonWorkout({ weekNum: selectedMarathonWeek, day: day.day, workout: day })}
+                                    >
+                                      Details
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
 
                 {/* Details Popup Modal */}
                 {selectedMarathonWorkout && (
@@ -1771,7 +1924,10 @@ function App() {
                     <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
                         <div>
-                          <span className="calendar-day-name" style={{ fontSize: '0.8rem' }}>Week {selectedMarathonWorkout.weekNum} — {selectedMarathonWorkout.day}</span>
+                          <span className="calendar-day-name" style={{ fontSize: '0.8rem' }}>
+                            Week {selectedMarathonWorkout.weekNum} — {selectedMarathonWorkout.day}
+                            {marathonPlan.startDate && ` (${getCalendarDate(marathonPlan.startDate, selectedMarathonWorkout.weekNum, selectedMarathonWorkout.day)})`}
+                          </span>
                           <h3 style={{ marginTop: '0.25rem', fontSize: '1.5rem', fontWeight: 700 }}>
                             {selectedMarathonWorkout.workout.distance > 0 ? `${selectedMarathonWorkout.workout.distance} km Run` : 'Rest & Recovery'}
                           </h3>

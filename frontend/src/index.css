@@ -951,3 +951,119 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+/* Complete Calendar Grid styles */
+.marathon-calendar-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.calendar-grid-row {
+  display: grid;
+  grid-template-columns: 80px repeat(7, 1fr);
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.calendar-grid-cell {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 85px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.calendar-grid-cell:hover {
+  border-color: rgba(0, 242, 254, 0.3);
+  background: rgba(255, 255, 255, 0.05);
+  transform: scale(1.02);
+}
+
+.calendar-grid-cell.completed {
+  background: rgba(16, 185, 129, 0.08) !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
+
+.calendar-grid-cell.rest {
+  background: rgba(255, 255, 255, 0.01);
+  opacity: 0.75;
+}
+
+.calendar-grid-header-days {
+  display: grid;
+  grid-template-columns: 80px repeat(7, 1fr);
+  gap: 0.5rem;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.calendar-view-toggle-bar {
+  display: flex;
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid var(--border-light);
+  padding: 0.25rem;
+  border-radius: 8px;
+  width: fit-content;
+  margin-bottom: 1.5rem;
+}
+
+.calendar-toggle-btn {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.calendar-toggle-btn:hover {
+  color: var(--primary);
+}
+
+.calendar-toggle-btn.active {
+  background: var(--primary);
+  color: #050a14;
+  box-shadow: 0 2px 8px rgba(0, 242, 254, 0.3);
+}
+
+@media (max-width: 768px) {
+  .marathon-calendar-container-scrollable {
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary) transparent;
+  }
+  
+  .marathon-calendar-container-scrollable::-webkit-scrollbar {
+    height: 4px;
+  }
+  
+  .marathon-calendar-container-scrollable::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 4px;
+  }
+
+  .calendar-grid-row, .calendar-grid-header-days {
+    min-width: 700px;
+  }
+}
+

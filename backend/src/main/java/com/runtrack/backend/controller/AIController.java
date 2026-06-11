@@ -252,20 +252,31 @@ public class AIController {
         return ResponseEntity.ok(Map.of("message", "Marathon plan reset successfully"));
     }
 
+    private String getActiveGeminiKey() {
+        return (geminiApiKey != null && !geminiApiKey.isEmpty()) ? geminiApiKey : System.getenv("GEMINI_API_KEY");
+    }
+
+    private String getActiveGroqKey() {
+        return (groqApiKey != null && !groqApiKey.isEmpty()) ? groqApiKey : System.getenv("GROQ_API_KEY");
+    }
+
     // Call Gemini API with conversational context
     private String callGeminiAPI(String systemInstruction, List<Map<String, Object>> frontendMessages) {
-        boolean useGemini = geminiApiKey != null && geminiApiKey.startsWith("AIzaSy");
-        boolean useGroq = groqApiKey != null && groqApiKey.startsWith("gsk_");
+        String geminiKey = getActiveGeminiKey();
+        String groqKey = getActiveGroqKey();
+
+        boolean useGemini = geminiKey != null && geminiKey.startsWith("AIzaSy");
+        boolean useGroq = groqKey != null && groqKey.startsWith("gsk_");
 
         if (!useGemini && useGroq) {
-            return callGroqAPI(systemInstruction, frontendMessages);
+            return callGroqAPI(groqKey, systemInstruction, frontendMessages);
         }
 
-        if (geminiApiKey == null || geminiApiKey.isEmpty() || !useGemini) {
+        if (geminiKey == null || geminiKey.isEmpty() || !useGemini) {
             return "⚠️ Gemini API key (starting with AIzaSy) is not configured correctly, and no Groq fallback was found.";
         }
 
-        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiApiKey;
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiKey;
 
         try {
             // Build the contents payload for Gemini
@@ -321,18 +332,21 @@ public class AIController {
 
     // Call Gemini API with a single text prompt (used for workout / marathon JSON generation)
     private String callGeminiAPISinglePrompt(String prompt) {
-        boolean useGemini = geminiApiKey != null && geminiApiKey.startsWith("AIzaSy");
-        boolean useGroq = groqApiKey != null && groqApiKey.startsWith("gsk_");
+        String geminiKey = getActiveGeminiKey();
+        String groqKey = getActiveGroqKey();
+
+        boolean useGemini = geminiKey != null && geminiKey.startsWith("AIzaSy");
+        boolean useGroq = groqKey != null && groqKey.startsWith("gsk_");
 
         if (!useGemini && useGroq) {
-            return callGroqAPISinglePrompt(prompt);
+            return callGroqAPISinglePrompt(groqKey, prompt);
         }
 
-        if (geminiApiKey == null || geminiApiKey.isEmpty() || !useGemini) {
+        if (geminiKey == null || geminiKey.isEmpty() || !useGemini) {
             return null;
         }
 
-        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiApiKey;
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiKey;
 
         try {
             ObjectNode root = objectMapper.createObjectNode();
@@ -359,7 +373,7 @@ public class AIController {
     }
 
     // Call Groq API with conversational context
-    private String callGroqAPI(String systemInstruction, List<Map<String, Object>> frontendMessages) {
+    private String callGroqAPI(String groqKey, String systemInstruction, List<Map<String, Object>> frontendMessages) {
         String url = "https://api.groq.com/openai/v1/chat/completions";
         try {
             ArrayNode messagesArray = objectMapper.createArrayNode();
@@ -386,7 +400,7 @@ public class AIController {
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("Authorization", "Bearer " + groqApiKey);
+            headers.set("Authorization", "Bearer " + groqKey);
             HttpEntity<String> entity = new HttpEntity<>(root.toString(), headers);
             
             ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
@@ -401,7 +415,7 @@ public class AIController {
     }
 
     // Call Groq API with a single text prompt
-    private String callGroqAPISinglePrompt(String prompt) {
+    private String callGroqAPISinglePrompt(String groqKey, String prompt) {
         String url = "https://api.groq.com/openai/v1/chat/completions";
         try {
             ArrayNode messagesArray = objectMapper.createArrayNode();
@@ -415,7 +429,7 @@ public class AIController {
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("Authorization", "Bearer " + groqApiKey);
+            headers.set("Authorization", "Bearer " + groqKey);
             HttpEntity<String> entity = new HttpEntity<>(root.toString(), headers);
             
             ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);

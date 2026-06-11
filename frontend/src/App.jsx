@@ -47,11 +47,22 @@ ChartJS.register(
   Filler
 );
 
-const BrandLogo = ({ size = '24px', fallbackEmoji = '⚡' }) => {
+const BrandLogo = ({ containerSize = '38px', fallbackEmoji = '⚡', isAuth = false }) => {
   const [useFallback, setUseFallback] = useState(false);
 
   if (useFallback) {
-    return <span style={{ fontSize: `calc(${size} * 0.75)` }}>{fallbackEmoji}</span>;
+    return (
+      <div 
+        className="brand-icon" 
+        style={{ 
+          width: containerSize, 
+          height: containerSize,
+          fontSize: isAuth ? '1.5rem' : 'inherit'
+        }}
+      >
+        {fallbackEmoji}
+      </div>
+    );
   }
 
   return (
@@ -60,8 +71,8 @@ const BrandLogo = ({ size = '24px', fallbackEmoji = '⚡' }) => {
       alt="Logo"
       onError={() => setUseFallback(true)}
       style={{
-        width: size,
-        height: size,
+        width: containerSize,
+        height: containerSize,
         objectFit: 'contain',
         display: 'block'
       }}
@@ -878,9 +889,7 @@ function App() {
         <div className="auth-card animate-fade-in">
           <div className="auth-header">
             <div style={{ display: 'inline-flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-              <div className="brand-icon" style={{ width: '50px', height: '50px' }}>
-                <BrandLogo size="30px" fallbackEmoji="🏃" />
-              </div>
+              <BrandLogo containerSize="50px" fallbackEmoji="🏃" isAuth={true} />
             </div>
             <h2>Welcome to RunTrack</h2>
             <p>Your AI-Powered Personal Running Coach</p>
@@ -930,9 +939,7 @@ function App() {
         <div className="auth-card animate-fade-in">
           <div className="auth-header">
             <div style={{ display: 'inline-flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-              <div className="brand-icon" style={{ width: '50px', height: '50px' }}>
-                <BrandLogo size="30px" fallbackEmoji="🏃" />
-              </div>
+              <BrandLogo containerSize="50px" fallbackEmoji="🏃" isAuth={true} />
             </div>
             <h2>Create Account</h2>
             <p>Start tracking and training today</p>
@@ -1088,9 +1095,7 @@ function App() {
       {/* Sidebar Navigation */}
       <nav className="sidebar">
         <div className="brand">
-          <div className="brand-icon">
-            <BrandLogo size="22px" fallbackEmoji="⚡" />
-          </div>
+          <BrandLogo containerSize="38px" fallbackEmoji="⚡" />
           <span className="brand-name">RunTrack</span>
         </div>
         <ul className="nav-menu">

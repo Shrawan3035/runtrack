@@ -133,11 +133,11 @@ export const api = {
     return res.json();
   },
 
-  generateMarathonPlan: async (startDate, targetDate, targetDistance) => {
+  generateMarathonPlan: async (startDate, targetDate, targetDistance, runsPerWeek) => {
     const res = await fetch(`${API_BASE_URL}/ai/marathon`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ startDate, targetDate, targetDistance }),
+      body: JSON.stringify({ startDate, targetDate, targetDistance, runsPerWeek }),
     });
     if (!res.ok) {
       const err = await res.text();

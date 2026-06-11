@@ -716,3 +716,162 @@ h1, h2, h3, h4, h5, h6 {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* Runna-style Calendar Planner */
+.week-tabs-container {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.5rem 0;
+  margin-bottom: 1.5rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary) transparent;
+}
+
+.week-tabs-container::-webkit-scrollbar {
+  height: 4px;
+}
+
+.week-tabs-container::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 4px;
+}
+
+.week-tab-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  flex-shrink: 0;
+}
+
+.week-tab-btn:hover {
+  background: rgba(0, 242, 254, 0.1);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.week-tab-btn.active {
+  background: var(--primary);
+  color: #050a14;
+  border-color: var(--primary);
+  box-shadow: 0 0 15px rgba(0, 242, 254, 0.4);
+}
+
+.calendar-day-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(30, 41, 59, 0.2);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  transition: var(--transition-smooth);
+  position: relative;
+  overflow: hidden;
+}
+
+.calendar-day-card:hover {
+  border-color: rgba(0, 242, 254, 0.3);
+  background: rgba(30, 41, 59, 0.3);
+  transform: translateY(-2px);
+}
+
+.calendar-day-card.completed {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.03);
+}
+
+.calendar-day-left {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  width: calc(100% - 90px);
+}
+
+.calendar-circle-checkbox {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  color: transparent;
+  flex-shrink: 0;
+}
+
+.calendar-circle-checkbox:hover {
+  border-color: var(--primary);
+}
+
+.calendar-circle-checkbox.checked {
+  border-color: #10b981;
+  background: #10b981;
+  color: #050a14;
+}
+
+.calendar-day-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: calc(100% - 45px);
+}
+
+.calendar-day-name {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+.calendar-workout-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.calendar-workout-desc {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.calendar-workout-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+}
+
+.calendar-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.rest-day-card {
+  opacity: 0.7;
+}
+
+.rest-day-card .calendar-workout-title {
+  color: var(--text-secondary);
+}
+

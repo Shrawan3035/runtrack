@@ -173,6 +173,16 @@ public class AIController {
         String startDateStr = (String) request.get("startDate");
         String targetDateStr = (String) request.get("targetDate");
         String distance = (String) request.get("targetDistance"); // e.g. "Full Marathon", "Half Marathon", "10k"
+        Object runsPerWeekObj = request.get("runsPerWeek");
+        
+        int runsPerWeek = 4; // default
+        if (runsPerWeekObj instanceof Number) {
+            runsPerWeek = ((Number) runsPerWeekObj).intValue();
+        } else if (runsPerWeekObj instanceof String) {
+            try {
+                runsPerWeek = Integer.parseInt((String) runsPerWeekObj);
+            } catch (Exception e) {}
+        }
 
         if (startDateStr == null || targetDateStr == null || distance == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Missing startDate, targetDate, or targetDistance");
@@ -190,20 +200,40 @@ public class AIController {
         }
 
         StringBuilder prompt = new StringBuilder();
-        prompt.append("Create a detailed, day-by-day marathon training program for: ").append(user.getName()).append("\n");
+        prompt.append("Create a detailed, day-by-day training program for: ").append(user.getName()).append("\n");
         prompt.append("- Level: ").append(user.getExperienceLevel()).append("\n");
         prompt.append("- Goal Distance: ").append(distance).append("\n");
         prompt.append("- Training Duration: ").append(weeksBetween).append(" weeks\n");
         prompt.append("- Start Date: ").append(startDateStr).append("\n");
-        prompt.append("- Target Race Date: ").append(targetDateStr).append("\n\n");
+        prompt.append("- Target Race Date: ").append(targetDateStr).append("\n");
+        prompt.append("- Running days per week: ").append(runsPerWeek).append(" days\n");
+        prompt.append("- Rest days per week: ").append(7 - runsPerWeek).append(" days\n\n");
+        prompt.append("The schedule array for each week MUST contain exactly 7 objects (one for each day from Monday to Sunday in order). ");
+        prompt.append("Exactly ").append(runsPerWeek).append(" days should have run workouts (distance > 0), and the remaining ").append(7 - runsPerWeek).append(" days should be marked as Rest days (type: 'Rest', distance: 0.0, description: 'Rest day').\n\n");
         prompt.append("Generate a plan in JSON format. Return ONLY the JSON array (do not wrap in markdown ```json blocks). The structure must be an array of weeks:\n");
         prompt.append("[\n");
         prompt.append("  {\n");
         prompt.append("    \"week\": 1,\n");
         prompt.append("    \"weeklyDistance\": 24.5,\n");
         prompt.append("    \"schedule\": [\n");
-        prompt.append("      {\"day\": \"Monday\", \"type\": \"Rest\", \"distance\": 0.0, \"description\": \"Rest day\"},\n");
-        prompt.append("      {\"day\": \"Tuesday\", \"type\": \"Easy\", \"distance\": 5.0, \"description\": \"Easy aerobic recovery run\"},\n");
+        prompt.append("      {\n");
+        prompt.append("        \"day\": \"Monday\",\n");
+        prompt.append("        \"type\": \"Rest\",\n");
+        prompt.append("        \"distance\": 0.0,\n");
+        prompt.append("        \"description\": \"Rest day\",\n");
+        prompt.append("        \"targetDuration\": \"—\",\n");
+        prompt.append("        \"coachingTips\": \"Focus on recovery, active stretching, and hydration. Let your body absorb the training.\",\n");
+        prompt.append("        \"targetPace\": \"—\"\n");
+        prompt.append("      },\n");
+        prompt.append("      {\n");
+        prompt.append("        \"day\": \"Tuesday\",\n");
+        prompt.append("        \"type\": \"Easy\",\n");
+        prompt.append("        \"distance\": 5.0,\n");
+        prompt.append("        \"description\": \"Easy aerobic recovery run\",\n");
+        prompt.append("        \"targetDuration\": \"35:00\",\n");
+        prompt.append("        \"coachingTips\": \"Maintain a conversational pace. Focus on high cadence and light footfalls.\",\n");
+        prompt.append("        \"targetPace\": \"6:30 - 7:00 /km\"\n");
+        prompt.append("      },\n");
         prompt.append("      ...\n");
         prompt.append("    ]\n");
         prompt.append("  }\n");

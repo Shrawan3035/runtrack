@@ -440,30 +440,46 @@ function App() {
       console.error('Failed to sync completed run state to server', err);
     }
 
-    // Auto-log to backend history if checking a running day
-    if (isChecking && workout && workout.distance > 0) {
-      try {
-        let runType = 'easy';
-        const typeLwr = (workout.type || '').toLowerCase();
-        if (typeLwr.includes('interval')) runType = 'intervals';
-        else if (typeLwr.includes('tempo')) runType = 'tempo';
-        else if (typeLwr.includes('long')) runType = 'long';
-        else if (typeLwr.includes('threshold')) runType = 'intervals';
+    if (isChecking) {
+      // Auto-log to backend history if checking a running day
+      if (workout && workout.distance > 0) {
+        try {
+          let runType = 'easy';
+          const typeLwr = (workout.type || '').toLowerCase();
+          if (typeLwr.includes('interval')) runType = 'intervals';
+          else if (typeLwr.includes('tempo')) runType = 'tempo';
+          else if (typeLwr.includes('long')) runType = 'long';
+          else if (typeLwr.includes('threshold')) runType = 'intervals';
 
-        await api.logActivity({
-          date: new Date().toISOString().substring(0, 10),
-          type: runType,
-          customName: '',
-          distance: parseFloat(workout.distance),
-          duration: workout.targetDuration && workout.targetDuration !== '—' ? workout.targetDuration : '30:00',
-          elevation: 0,
-          effort: 5,
-          notes: `Completed Training Plan Week ${weekNum} - ${dayName} (${workout.type} run)`,
-          gpsRoute: null
-        });
-        fetchAppData();
+          await api.logActivity({
+            date: new Date().toISOString().substring(0, 10),
+            type: runType,
+            customName: '',
+            distance: parseFloat(workout.distance),
+            duration: workout.targetDuration && workout.targetDuration !== '—' ? workout.targetDuration : '30:00',
+            elevation: 0,
+            effort: 5,
+            notes: `Completed Training Plan Week ${weekNum} - ${dayName} (${workout.type} run)`,
+            gpsRoute: null
+          });
+          fetchAppData();
+        } catch (err) {
+          console.error('Failed to auto-log run', err);
+        }
+      }
+    } else {
+      // Auto-delete from backend history if unchecking a running day
+      try {
+        const targetNotesPrefix = `Completed Training Plan Week ${weekNum} - ${dayName}`;
+        const toDelete = activities.filter(a => a.notes && a.notes.includes(targetNotesPrefix));
+        for (const act of toDelete) {
+          await api.deleteActivity(act.id);
+        }
+        if (toDelete.length > 0) {
+          fetchAppData();
+        }
       } catch (err) {
-        console.error('Failed to auto-log run', err);
+        console.error('Failed to auto-delete run from history', err);
       }
     }
   };
